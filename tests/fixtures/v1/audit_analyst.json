@@ -1,0 +1,15 @@
+{
+  "schema_version": "1.0",
+  "seq": 2,
+  "at": "2026-01-05T14:30:00Z",
+  "alert_id": "a-ffffffffffffff01",
+  "payload": {
+    "kind": "analyst_action",
+    "alert_id": "a-ffffffffffffff01",
+    "action": "override",
+    "comment": "Known traveller",
+    "analyst": "demo"
+  },
+  "prev_hash": "0000000000000000000000000000000000000000000000000000000000000001",
+  "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+}

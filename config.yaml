@@ -1,0 +1,20 @@
+# Run configuration (Tech Spec §3). Model ids are verified against Bedrock in W0.2.
+provider: bedrock           # D-27: bedrock or anthropic (first-party API)
+region: us-east-1
+stage1:
+  model: anthropic.claude-haiku-5-5   # verify in W0.2 (global inference profile id)
+  effort: medium                      # D-16
+  max_output_tokens: 4096
+stage2:
+  model: anthropic.claude-sonnet-5-5  # verify in W0.2 (global inference profile id)
+  effort: high                        # D-16
+  max_output_tokens: 8192
+clear_ceiling: 0.9          # router rule 5: no auto-clear at or above this risk score
+clear_min_confidence: 0.7   # router rule 6, stage 2 only
+concurrency: 8              # set from quotas in W0.2
+seed: 20261115
+max_cost_usd: 15
+thresholds:
+  - metric: leakage         # OWNER D-10: no fraud auto-cleared
+    op: "=="
+    value: 0

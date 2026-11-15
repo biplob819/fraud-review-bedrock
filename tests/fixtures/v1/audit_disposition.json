@@ -1,0 +1,22 @@
+{
+  "schema_version": "1.0",
+  "seq": 1,
+  "at": "2026-01-05T14:30:00Z",
+  "alert_id": "a-ffffffffffffff01",
+  "payload": {
+    "kind": "disposition",
+    "alert_id": "a-ffffffffffffff01",
+    "final": "hold",
+    "decided_at_stage": 2,
+    "router_refusals": [
+      "predicate_false:P7.1"
+    ],
+    "decision_ids": [
+      "d-0",
+      "d-1"
+    ],
+    "queue": "priority"
+  },
+  "prev_hash": "0000000000000000000000000000000000000000000000000000000000000001",
+  "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+}

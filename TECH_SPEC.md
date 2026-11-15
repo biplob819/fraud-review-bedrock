@@ -91,7 +91,7 @@ FDB load(sparknov) ─▶ Minimise ─▶ TimeSplit(train | val | test)
                                          SHAP top 5 → AlertTruth
 ```
 
-- **Minimise.** Drop first, last, street, city, state, zip, lat, long, merch_lat, merch_long, dob, job, gender, city_pop. Replace `cc_num` with a salted hash (`card_id`) and `trans_num` with an opaque id. Strip the `fraud_` prefix Sparkov puts on merchant names (verify in N1.2; it appears on every row, fraud or not, and would bias a language model).
+- **Minimise.** Drop first, last, street, city, state, zip, lat, long, merch_lat, merch_long, dob, job, gender, city_pop. Replace `cc_num` with a salted hash (`card_id`) and `trans_num` with an opaque id. An `alert_id` is `a-` plus the first 16 hex characters of a salted hash; if those contain a run of 12 or more digits (about 1 in 113), the salt is bumped and the hash taken again, so no id can look like a card number. Strip the `fraud_` prefix Sparkov puts on merchant names (verify in N1.2; it appears on every row, fraud or not, and would bias a language model).
 - **Features** (FR2), each computed from the card's earlier transactions only:
   - `amt_vs_usual`: amount ÷ the card's trailing median amount (null under 3 prior transactions).
   - `hour`: hour of day.
@@ -141,7 +141,7 @@ AlertCase ─▶ Stage1 (Haiku 5.5) ─▶ Router1 ──clear accepted──▶
 
 ## 3. Schemas (pydantic)
 
-Results format v1. Every file carries `schema_version: "1.0"`. Models are frozen with tuples, not lists, and floats reject infinity (EvalKit L-8, L-9).
+Results format v1. Every file carries `schema_version: "1.0"`. Models are frozen and strict: tuples, not lists; read-only mappings; floats reject NaN and infinity; no coercion from strings; datetimes carry a zone and are normalised to UTC; text fields need a visible character (EvalKit L-8, L-9, L-27). Records are read back with `model_validate_json`.
 
 ```python
 FeatureName = Literal["amt_vs_usual", "hour", "category_freq", "merchant_first_seen",
@@ -157,10 +157,10 @@ class Features(BaseModel):
 
 
 class AlertCase(BaseModel):  # everything a model may see, and nothing else (D-7)
-    alert_id: str            # opaque
-    ts_hour: int
+    alert_id: str            # opaque "a-" + 16 hex; never a run of 12+ digits
+    ts_hour: int             # equals features.hour
     ts_dow: int
-    category: str
+    category: Category       # one of the 14 Sparkov categories
     amount: float
     features: Features
     risk_score: float
@@ -229,6 +229,7 @@ class TriageDecision(BaseModel):       # one per stage call (FR9)
 
 
 class Disposition(BaseModel):          # exactly one per alert (US5, NFR4)
+    kind: Literal["disposition"] = "disposition"
     alert_id: str
     final: Literal["auto_cleared", "hold", "escalate"]
     decided_at_stage: Literal[1, 2]
@@ -238,20 +239,25 @@ class Disposition(BaseModel):          # exactly one per alert (US5, NFR4)
 
 
 class AnalystAction(BaseModel):        # US8, FR12
+    kind: Literal["analyst_action"] = "analyst_action"
     alert_id: str
     action: Literal["confirm_fraud", "clear", "override"]
     comment: str | None
     analyst: str                       # "demo-session-<id>" in the demo
 
 
+class DecisionEvent(BaseModel):
+    kind: Literal["decision"] = "decision"
+    decision: TriageDecision
+
+
 class AuditEvent(BaseModel):           # D-12
     seq: int
-    at: datetime
-    kind: Literal["decision", "disposition", "analyst_action"]
+    at: datetime                       # zone required, normalised to UTC
     alert_id: str
-    payload: TriageDecision | Disposition | AnalystAction
-    prev_hash: str
-    hash: str                          # sha256(prev_hash + canonical payload)
+    payload: DecisionEvent | Disposition | AnalystAction   # discriminated by payload.kind
+    prev_hash: str                     # "" exactly for seq 0, else 64 hex
+    hash: str                          # 64 hex: sha256 of the canonical event without `hash`
 ```
 
 The PRD's `AuditEntry` is a derived view: `audit_view(alert_id)` joins an alert's decisions, its disposition and its analyst actions.
@@ -291,14 +297,24 @@ class ExplanationSummary(BaseModel):
     driver_agreement: Interval      # D-11; recall of positive SHAP top-3 in fields_used
     faithfulness: dict[str, Interval]   # per EvalKit judge
     judge_mode: Literal["dual", "single", "none"]
-    mismatch_examples: tuple[str, ...]  # alert_ids, at least 3 (US4)
+    mismatch_examples: tuple[str, ...]  # alert_ids picked by a fixed rule; E2.2 picks 3 when there are 3 (US4)
+
+
+ThresholdMetric = Literal["leakage", "recall_end_to_end", "auto_clear_rate", "auto_clear_precision",
+                          "cost_per_1000_usd", "latency_p95_stage2_ms", "schema_valid",
+                          "clauses_valid", "fields_valid", "protected_mentions"]
 
 
 class ThresholdResult(BaseModel):
-    metric: str
+    metric: ThresholdMetric            # a fixed list of metric names, each at most once
     op: Literal[">=", "<=", "=="]
     value: float
-    passed: bool
+    passed: bool | None = None         # None until evaluated; config rows never carry it
+
+
+class LatencySummary(BaseModel):
+    p50: int                           # milliseconds, p50 <= p95
+    p95: int
 
 
 class RunSummary(BaseModel):
@@ -322,7 +338,7 @@ class RunSummary(BaseModel):
     queue_mix: dict[str, int]          # hold, escalate
     minutes_saved_per_1000: Interval   # modelled with the ROI input m
     cost_per_1000_usd: Interval
-    latency_ms: dict[str, dict[str, int]]   # stage -> p50, p95
+    latency_ms: dict[str, LatencySummary]   # "stage1" | "stage2" -> p50 <= p95
     explanation: ExplanationSummary
     errors: dict[str, int]
     thresholds: tuple[ThresholdResult, ...]

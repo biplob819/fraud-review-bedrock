@@ -1,0 +1,30 @@
+{
+  "schema_version": "1.0",
+  "case": {
+    "alert_id": "a-ffffffffffffff01",
+    "ts_hour": 3,
+    "ts_dow": 2,
+    "category": "shopping_net",
+    "amount": 812.4,
+    "features": {
+      "amt_vs_usual": 9.1,
+      "hour": 3,
+      "category_freq": 0.05,
+      "merchant_first_seen": true,
+      "card_history_n": 40
+    },
+    "risk_score": 0.83
+  },
+  "truth": {
+    "alert_id": "a-ffffffffffffff01",
+    "label": true,
+    "shap_top5": [
+      {
+        "feature": "amt_vs_usual",
+        "contribution": 1.2
+      }
+    ]
+  },
+  "merchant": "Kirlin",
+  "trans_ts": "2026-01-05T14:30:00Z"
+}

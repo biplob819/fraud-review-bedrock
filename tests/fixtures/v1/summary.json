@@ -1,0 +1,166 @@
+{
+  "schema_version": "1.0",
+  "run_id": "r-1",
+  "split": "golden",
+  "data_label": "simulated",
+  "n_alerts": 20,
+  "n_frauds": 4,
+  "policy_version": "pv",
+  "prompt_hashes": {
+    "stage1": "a",
+    "stage2": "b"
+  },
+  "models": {
+    "stage1": "h",
+    "stage2": "s"
+  },
+  "provider": "bedrock",
+  "baseline": {
+    "threshold": 0.2,
+    "recall_val": 0.98,
+    "precision_val": 0.2,
+    "recall_test": {
+      "k": 4,
+      "n": 4,
+      "point": 1.0,
+      "lo": 1.0,
+      "hi": 1.0
+    },
+    "precision_test": {
+      "k": 4,
+      "n": 20,
+      "point": 0.2,
+      "lo": 0.2,
+      "hi": 0.2
+    },
+    "alert_rate_test": 0.01
+  },
+  "leakage": {
+    "k": 0,
+    "n": 4,
+    "point": 0.0,
+    "lo": 0.0,
+    "hi": 0.6
+  },
+  "recall_end_to_end": {
+    "k": 4,
+    "n": 4,
+    "point": 1.0,
+    "lo": 1.0,
+    "hi": 1.0
+  },
+  "auto_clear_rate": {
+    "k": 10,
+    "n": 20,
+    "point": 0.5,
+    "lo": 0.5,
+    "hi": 0.5
+  },
+  "auto_clear_precision": {
+    "k": 10,
+    "n": 10,
+    "point": 1.0,
+    "lo": 1.0,
+    "hi": 1.0
+  },
+  "stage1_clear_rate": {
+    "k": 6,
+    "n": 20,
+    "point": 0.3,
+    "lo": 0.3,
+    "hi": 0.3
+  },
+  "stage2_reach_rate": {
+    "k": 14,
+    "n": 20,
+    "point": 0.7,
+    "lo": 0.7,
+    "hi": 0.7
+  },
+  "queue_mix": {
+    "hold": 4,
+    "escalate": 6
+  },
+  "minutes_saved_per_1000": {
+    "point": 3000.0,
+    "lo": 3000.0,
+    "hi": 3000.0
+  },
+  "cost_per_1000_usd": {
+    "point": 13.1,
+    "lo": 13.1,
+    "hi": 13.1
+  },
+  "latency_ms": {
+    "stage2": {
+      "p50": 3000,
+      "p95": 7000
+    }
+  },
+  "explanation": {
+    "schema_valid": {
+      "k": 1,
+      "n": 1,
+      "point": 1.0,
+      "lo": 1.0,
+      "hi": 1.0
+    },
+    "clauses_valid": {
+      "k": 1,
+      "n": 1,
+      "point": 1.0,
+      "lo": 1.0,
+      "hi": 1.0
+    },
+    "fields_valid": {
+      "k": 1,
+      "n": 1,
+      "point": 1.0,
+      "lo": 1.0,
+      "hi": 1.0
+    },
+    "values_true": {
+      "k": 1,
+      "n": 1,
+      "point": 1.0,
+      "lo": 1.0,
+      "hi": 1.0
+    },
+    "protected_mentions": 0,
+    "driver_agreement": {
+      "point": 0.6,
+      "lo": 0.6,
+      "hi": 0.6
+    },
+    "faithfulness": {
+      "claude-opus-5-5": {
+        "point": 0.9,
+        "lo": 0.9,
+        "hi": 0.9
+      },
+      "gpt-sol": {
+        "point": 0.88,
+        "lo": 0.88,
+        "hi": 0.88
+      }
+    },
+    "judge_mode": "dual",
+    "mismatch_examples": [
+      "a-ffffffffffffff01",
+      "a-ffffffffffffff02",
+      "a-ffffffffffffff03"
+    ]
+  },
+  "errors": {},
+  "thresholds": [
+    {
+      "metric": "leakage",
+      "op": "==",
+      "value": 0.0,
+      "passed": true
+    }
+  ],
+  "cost_total_usd": 0.26,
+  "started_at": "2026-01-05T14:30:00Z",
+  "finished_at": "2026-01-05T14:30:00Z"
+}
