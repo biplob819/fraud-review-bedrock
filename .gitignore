@@ -1,0 +1,27 @@
+.venv/
+.venv-py*/
+__pycache__/
+*.pyc
+dist/
+build/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.harness/
+.fraud/
+results/
+data/
+.env
+.DS_Store
+.kaggle/
+
+# local notes and the private public-content guard list, never committed
+*.local.md
+.public-guard.local
+
+# Streamlit local secrets
+.streamlit/secrets.toml
+
+# Claude Code local settings
+.claude/settings.local.json
+.claude/scheduled_tasks.lock

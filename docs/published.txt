@@ -1,0 +1,3 @@
+# Published artifacts whose numbers must carry the simulated label (honesty gate, D-14).
+# Design docs (PRD, Tech Spec) are not results and are not listed.
+README.md
