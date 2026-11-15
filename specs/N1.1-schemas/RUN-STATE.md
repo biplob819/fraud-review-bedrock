@@ -19,3 +19,4 @@
 - `Rate.point` uses an absolute 1e-12 tolerance; use ulp-level equality or reword the criteria.
 - `FrozenDict`: `__dict__['_sealed']` tampering re-opens `__init__`; use `__slots__`.
 - Duplicate-key errors name key and line but not the dotted path.
+- Config: an explicit YAML tag that cannot be built (`!!timestamp x`, `!!float x`) raises ValueError/AttributeError instead of ConfigError (found by the N1.4 verifier; policy.py now catches these).

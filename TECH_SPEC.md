@@ -19,7 +19,7 @@ Each decision below seeds `docs/decisions.md` as D-1 to D-29.
 | D-3 | Structured output through `output_config.format` (`messages.parse` with the pydantic model) | Forced `tool_choice`; free-text JSON | Forced tool choice returns a 400 on Sonnet 5.5. Structured outputs are supported on Bedrock and guarantee a schema-valid reply |
 | D-4 | The agent has no tools. It returns a decision record and nothing else | An agent with tools that act | B6 holds by construction: no block or contact tool exists to call. A test asserts the request carries no `tools` |
 | D-5 | A deterministic router decides the final disposition. A model's "clear" is a proposal that the router accepts only when a cited clearing clause's predicate is true in code | Trust the model's action and confidence | Closes C5. B4 becomes a code check, not a model's opinion. Self-reported confidence is recorded but never the only gate |
-| D-6 | Policy as code: `policy.md` holds numbered clauses in prose plus a fenced YAML block per clause with `kind` (signal, clear, no_clear), `fields` and a `when` predicate over allow-listed features. Its sha256 is `policy_version` | Prose policy only | Makes B4 and B8 checkable, gives the "policy-as-code format" reusable pattern, and versions every decision |
+| D-6 | Policy as code: `policy.md` holds numbered clauses in prose plus a fenced YAML block per clause with `kind` (signal, clear, no_clear), `fields` and a `when` predicate over allow-listed features. The first 16 hex characters of its sha256 are `policy_version` | Prose policy only | Makes B4 and B8 checkable, gives the "policy-as-code format" reusable pattern, and versions every decision |
 | D-7 | Prompts are built from a field **allow-list**. SHAP drivers and the fraud label never reach a prompt; they live in a separate type (`AlertTruth`) that agent modules cannot import | Deny-list of PII columns; one `Alert` object | Closes H4, H5 and the circularity in C3. B7 holds by construction because protected attributes are never sent |
 | D-8 | Time-based splits. FDB's train file splits into train and validation by date; FDB's test file is the test period. Prompt and policy tuning use a **dev set** of 100 alerts from the validation period. Reported numbers come from an **eval set** of 500 alerts from the test period. Policy and prompts are frozen (hashed) before the eval run | Tune and report on the same 500 alerts | Closes C2. A reported auto-clear rate must not be training accuracy |
 | D-9 | The alert threshold is set on validation so the baseline catches at least 98% of fraud, and the resulting alert precision is reported. If more than half of alerts are fraud, the threshold is lowered until the queue is mostly false positives, and the choice is logged | Default 0.5 threshold; tune for F1 | Closes C4. The PRD's problem is a queue of mostly legitimate alerts; a precision-tuned threshold on easy simulated data would leave nothing to clear |
@@ -387,6 +387,8 @@ when: amt_vs_usual >= 5
 ```
 
 ## P3.9 Never auto-clear extreme spend
+A purchase at ten or more times the card's usual amount always goes to a person.
+
 ```yaml
 id: P3.9
 kind: no_clear
@@ -405,7 +407,7 @@ when: amt_vs_usual < 2 and category_freq >= 0.2 and not merchant_first_seen
 ```
 ````
 
-- **Predicate grammar.** Comparisons, `and`, `or`, `not`, numbers, booleans and allow-listed feature names. Parsed with `ast` against a node allow-list; never `eval`. A predicate naming a field outside `fields` fails to load.
+- **Predicate grammar.** Comparisons, `and`, `or`, `not`, numbers, booleans, category names (one quoted string, exact spelling) and allow-listed feature names, each comparison between values of one type. Parsed with `ast` against a node allow-list; never `eval`. A predicate naming a field outside `fields` fails to load.
 - **Writing rule.** The policy is written from fraud-ops practice and tuned only on the dev set (D-8). `policy_version` is stamped on every decision.
 
 ### 4.2 Prompt shape

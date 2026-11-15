@@ -59,21 +59,21 @@ class RunConfig(Model):
         return self
 
 
-class _UniqueKeyLoader(yaml.SafeLoader):
+class StrictLoader(yaml.SafeLoader):
     """A safe loader that refuses duplicate keys instead of letting the last one win, and reads
     YAML timestamps as plain strings (JSON has no date type)."""
 
 
 _DROPPED = {"tag:yaml.org,2002:timestamp", "tag:yaml.org,2002:int", "tag:yaml.org,2002:float"}
-_UniqueKeyLoader.yaml_implicit_resolvers = {
+StrictLoader.yaml_implicit_resolvers = {
     first: [(tag, rx) for tag, rx in resolvers if tag not in _DROPPED]
     for first, resolvers in yaml.SafeLoader.yaml_implicit_resolvers.items()
 }
 # JSON-style numbers only (no hex, octal, sexagesimal or underscores)
-_UniqueKeyLoader.add_implicit_resolver(
+StrictLoader.add_implicit_resolver(
     "tag:yaml.org,2002:int", re.compile(r"^-?(?:0|[1-9][0-9]*)$"), list("-0123456789")
 )
-_UniqueKeyLoader.add_implicit_resolver(
+StrictLoader.add_implicit_resolver(
     "tag:yaml.org,2002:float",
     re.compile(
         r"^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][-+]?[0-9]+)?$|^\.(?:nan|NaN|NAN)$"
@@ -123,7 +123,7 @@ def _first_non_json(value: Any, path: str = "") -> str | None:
     return None
 
 
-def _mapping(loader: _UniqueKeyLoader, node: yaml.MappingNode, deep: bool = False) -> dict:
+def _mapping(loader: StrictLoader, node: yaml.MappingNode, deep: bool = False) -> dict:
     keys = [loader.construct_object(k, deep=deep) for k, _ in node.value]
     dupes = sorted({str(k) for k in keys if keys.count(k) > 1})
     if dupes:
@@ -133,7 +133,7 @@ def _mapping(loader: _UniqueKeyLoader, node: yaml.MappingNode, deep: bool = Fals
     return loader.construct_mapping(node, deep=deep)
 
 
-_UniqueKeyLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _mapping)
+StrictLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _mapping)
 
 
 def load_config(path: Path | str) -> RunConfig:
@@ -145,10 +145,10 @@ def load_config(path: Path | str) -> RunConfig:
     except UnicodeDecodeError as exc:
         raise ConfigError(f"{path}: not UTF-8 text") from exc
     try:
-        raw: Any = yaml.load(text, Loader=_UniqueKeyLoader)  # a SafeLoader subclass
+        raw: Any = yaml.load(text, Loader=StrictLoader)  # a SafeLoader subclass
     except yaml.YAMLError as exc:
         if "recursive" in str(exc):
-            node = yaml.compose(text, Loader=_UniqueKeyLoader)
+            node = yaml.compose(text, Loader=StrictLoader)
             where = (_cycle_path(node) if node is not None else None) or "(root)"
             raise ConfigError(f"{path}: {where}: a value that contains itself (cycle)") from exc
         raise ConfigError(f"{path}: not valid YAML ({exc})") from exc
