@@ -2,6 +2,9 @@
 
 Format: `[TYPE] [NODE] — summary`. Types: FEAT, FIX, DOCS, HARNESS, RELEASE.
 
+## 2026-11-17
+- [FEAT] [A2.1] — features, baseline, alerts and SHAP: point-in-time card features with a truncation-property leak test, a deterministic LightGBM baseline on the seven allow-listed fields, the D-9 threshold (98% validation recall, lowered if alerts would be mostly fraud), seeded dev (100) and eval (500) alert samples, and SHAP top-five drivers kept in separate truth files; `fraud baseline`
+
 ## 2026-11-16
 - [FEAT] [N1.2] — data load, minimisation and splits: `fraud load` downloads the pinned Sparkov files (the Fraud Dataset Benchmark's `sparknov` source), drops personal and location columns, replaces card and transaction numbers with opaque ids, strips the `fraud_` merchant prefix after checking it is on every row, cuts time-ordered train, validation and test splits with content hashes checked on every read, and documents it all in `DATA_CARD.md`
 

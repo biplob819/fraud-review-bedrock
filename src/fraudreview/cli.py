@@ -27,7 +27,46 @@ def build_parser() -> argparse.ArgumentParser:
     load.add_argument(
         "--offline", action="store_true", help="use files already in --raw-dir; never download"
     )
+    base = sub.add_parser(
+        "baseline", help="features, LightGBM baseline, D-9 threshold, alerts, samples and SHAP"
+    )
+    base.add_argument("--data-dir", type=Path, default=Path("data"), help="where splits are")
+    base.add_argument("--out", type=Path, default=Path("results/baseline"), help="output folder")
+    base.add_argument("--config", type=Path, default=Path("config.yaml"), help="run config (seed)")
     return ap
+
+
+def _baseline(args: argparse.Namespace) -> int:
+    from fraudreview.baseline import BaselineError, run_baseline
+    from fraudreview.config import ConfigError, load_config
+    from fraudreview.data import DataError
+
+    try:
+        seed = load_config(args.config).seed
+        report = run_baseline(args.data_dir, args.out, seed)
+    except ConfigError as exc:
+        print(f"fraud baseline: {exc}", file=sys.stderr)
+        return 2
+    except (BaselineError, DataError, OSError) as exc:
+        print(f"fraud baseline: {exc}", file=sys.stderr)
+        return 1
+    s = report["summary"]
+    print(f"threshold {s['threshold']:.6f} ({report['threshold']['reason']}; simulated data)")
+    print(
+        f"validation: recall {s['recall_val']:.1%}, precision {s['precision_val']:.1%} (simulated)"
+    )
+    rt, pt = s["recall_test"], s["precision_test"]
+    print(
+        f"test: recall {rt['point']:.1%} [{rt['lo']:.1%}, {rt['hi']:.1%}], precision "
+        f"{pt['point']:.1%} [{pt['lo']:.1%}, {pt['hi']:.1%}] (simulated)"
+    )
+    for key, mix in report["alert_mix"].items():
+        print(
+            f"{key}: {mix['alerts']} alerts, {mix['fraud']} fraud "
+            f"({mix['fraud_share']:.1%}, simulated)"
+        )
+    print(f"wrote {args.out}")
+    return 0
 
 
 def _load(args: argparse.Namespace) -> int:
@@ -80,6 +119,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.command == "load":
         return _load(args)
+    if args.command == "baseline":
+        return _baseline(args)
     parser.print_help()
     return 0
 
