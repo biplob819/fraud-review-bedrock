@@ -17,6 +17,8 @@ dependencies = [
     "botocore[crt]>=1.44.3",
     "lightgbm>=4",
     "shap>=0.46",
+    "scipy>=1.13",
+    "numpy>=1.26",
 ]
 
 [project.urls]
