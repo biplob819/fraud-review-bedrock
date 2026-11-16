@@ -19,6 +19,7 @@ dependencies = [
     "shap>=0.46",
     "scipy>=1.13",
     "numpy>=1.26",
+    "evalkit-harness @ git+https://github.com/biplob819/evalkit@43df77edb8efb07d6f168fc0f8b8544ec86e3aca",  # v0.2.0 (PRE-06)
 ]
 
 [project.urls]
@@ -38,6 +39,9 @@ dev = [
 [build-system]
 requires = ["hatchling>=1.26"]
 build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true  # EvalKit is pinned to an exact commit on GitHub
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/fraudreview"]

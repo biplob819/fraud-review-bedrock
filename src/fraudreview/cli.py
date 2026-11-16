@@ -33,7 +33,23 @@ def build_parser() -> argparse.ArgumentParser:
     base.add_argument("--data-dir", type=Path, default=Path("data"), help="where splits are")
     base.add_argument("--out", type=Path, default=Path("results/baseline"), help="output folder")
     base.add_argument("--config", type=Path, default=Path("config.yaml"), help="run config (seed)")
+    doc = sub.add_parser("doctor", help="check this machine and AWS account are ready to run")
+    doc.add_argument("--config", type=Path, default=Path("config.yaml"))
+    doc.add_argument("--prices", type=Path, default=Path("prices.yaml"))
+    doc.add_argument("--offline", action="store_true", help="local checks only; no AWS calls")
+    doc.add_argument(
+        "--smoke", action="store_true", help="also one tiny call per model (a fraction of a cent)"
+    )
     return ap
+
+
+def _doctor(args: argparse.Namespace) -> int:
+    from fraudreview.doctor import exit_code, run_checks
+
+    checks = run_checks(args.config, args.prices, offline=args.offline, smoke=args.smoke)
+    for c in checks:
+        print(f"{c.status.upper():<5} {c.name:<36} {c.detail}")
+    return exit_code(checks)
 
 
 def _baseline(args: argparse.Namespace) -> int:
@@ -121,6 +137,8 @@ def main(argv: list[str] | None = None) -> int:
         return _load(args)
     if args.command == "baseline":
         return _baseline(args)
+    if args.command == "doctor":
+        return _doctor(args)
     parser.print_help()
     return 0
 

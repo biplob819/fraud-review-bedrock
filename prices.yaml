@@ -1,0 +1,21 @@
+# Bedrock list prices for the run models: US dollars per million tokens, in-Region us-east-2
+# (D-34: 10% above the global rate). Source: the model agreement rate card,
+# `aws bedrock list-foundation-model-agreement-offers --model-id <id> --region us-east-2`,
+# dimensions USE2_*_standard. The unit matches Anthropic's published per-million prices.
+checked: "2026-11-17"
+currency: USD
+unit: per_million_tokens
+region: us-east-2
+models:
+  anthropic.claude-haiku-5-5:
+    input: 0.11
+    output: 0.55
+    cache_read: 0.011
+    cache_write_5m: 0.1375
+    cache_write_1h: 0.22
+  anthropic.claude-sonnet-5-5:
+    input: 2.2
+    output: 11.0
+    cache_read: 0.11
+    cache_write_5m: 2.75
+    cache_write_1h: 4.4

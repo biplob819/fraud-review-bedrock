@@ -150,12 +150,22 @@ wheels = [
 ]
 
 [[package]]
+name = "evalkit-harness"
+version = "0.2.0"
+source = { git = "https://github.com/biplob819/evalkit?rev=43df77edb8efb07d6f168fc0f8b8544ec86e3aca#43df77edb8efb07d6f168fc0f8b8544ec86e3aca" }
+dependencies = [
+    { name = "pydantic" },
+    { name = "pyyaml" },
+]
+
+[[package]]
 name = "fraud-review-bedrock"
 version = "0.0.1"
 source = { editable = "." }
 dependencies = [
     { name = "anthropic", extra = ["bedrock"] },
     { name = "botocore", extra = ["crt"] },
+    { name = "evalkit-harness" },
     { name = "lightgbm" },
     { name = "markdown-it-py" },
     { name = "numpy" },
@@ -179,6 +189,7 @@ dev = [
 requires-dist = [
     { name = "anthropic", extras = ["bedrock"], specifier = ">=1" },
     { name = "botocore", extras = ["crt"], specifier = ">=1.44.3" },
+    { name = "evalkit-harness", git = "https://github.com/biplob819/evalkit?rev=43df77edb8efb07d6f168fc0f8b8544ec86e3aca" },
     { name = "lightgbm", specifier = ">=4" },
     { name = "markdown-it-py", specifier = ">=3" },
     { name = "numpy", specifier = ">=1.26" },

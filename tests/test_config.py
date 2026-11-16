@@ -20,9 +20,16 @@ def test_committed_config_loads():
     "mutate, field",
     [
         (lambda t: t.replace("effort: high", "effort: extreme"), "stage2.effort"),
-        (lambda t: t.replace("region: us-east-1\n", ""), "region"),
+        (
+            lambda t: t.replace(
+                "region: us-east-2           # D-34: the project's own Region, "
+                "in-Region endpoint\n",
+                "",
+            ),
+            "region",
+        ),
         (lambda t: t + "surprise: 1\n", "surprise"),
-        (lambda t: t.replace("max_cost_usd: 15", "max_cost_usd: 0"), "max_cost_usd"),
+        (lambda t: t.replace("max_cost_usd: 5 ", "max_cost_usd: 0"), "max_cost_usd"),
         (lambda t: t.replace("provider: bedrock", "provider: openai"), "provider"),
         (lambda t: t.replace("metric: leakage", "metric: recall"), "thresholds.0.metric"),
     ],
@@ -63,7 +70,7 @@ def test_non_utf8_config_is_a_config_error(tmp_path, raw):
     "mutate, field",
     [
         (lambda t: t + "max_cost_usd: 99\n", "duplicate"),
-        (lambda t: t.replace("max_cost_usd: 15", "max_cost_usd: '15'"), "max_cost_usd"),
+        (lambda t: t.replace("max_cost_usd: 5 ", "max_cost_usd: '5' "), "max_cost_usd"),
         (lambda t: t.replace("concurrency: 8", "concurrency: '8'"), "concurrency"),
         (lambda t: t.replace("seed: 20261115", "seed: true"), "seed"),
     ],
@@ -84,7 +91,7 @@ def test_no_duplicates_and_no_coercion(tmp_path, mutate, field):
         lambda t: t + '  - metric: leakage\n    op: "<="\n    value: 1\n',
         lambda t: t.replace("clear_ceiling: 0.9", "clear_ceiling: 1.0"),
         lambda t: t.replace("clear_min_confidence: 0.7", "clear_min_confidence: 0"),
-        lambda t: t.replace("max_cost_usd: 15", "max_cost_usd: 1000000000000"),
+        lambda t: t.replace("max_cost_usd: 5 ", "max_cost_usd: 1000000000000"),
     ],
     ids=["leakage-op", "leakage-value", "second-leakage-row", "ceiling-1", "confidence-0", "cap"],
 )
@@ -98,10 +105,10 @@ def test_safety_settings_cannot_be_switched_off(tmp_path, mutate):
 @pytest.mark.parametrize(
     "mutate, field",
     [
-        (lambda t: t.replace("region: us-east-1", "region: 2026-01-01"), "region"),
+        (lambda t: t.replace("region: us-east-2", "region: 2026-01-01"), "region"),
         (lambda t: t.replace("seed: 20261115", "seed: 2026-11-15"), "seed"),
-        (lambda t: t.replace("region: us-east-1", "region: !!binary aGVsbG8="), "region"),
-        (lambda t: t.replace("region: us-east-1", "region: !!set {a, b}"), "region"),
+        (lambda t: t.replace("region: us-east-2", "region: !!binary aGVsbG8="), "region"),
+        (lambda t: t.replace("region: us-east-2", "region: !!set {a, b}"), "region"),
         (
             lambda t: t.replace("clear_min_confidence: 0.7", "clear_min_confidence: 0.3"),
             "clear_min_confidence",
