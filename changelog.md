@@ -2,6 +2,9 @@
 
 Format: `[TYPE] [NODE] — summary`. Types: FEAT, FIX, DOCS, HARNESS, RELEASE.
 
+## 2026-11-16
+- [FEAT] [N1.2] — data load, minimisation and splits: `fraud load` downloads the pinned Sparkov files (the Fraud Dataset Benchmark's `sparknov` source), drops personal and location columns, replaces card and transaction numbers with opaque ids, strips the `fraud_` merchant prefix after checking it is on every row, cuts time-ordered train, validation and test splits with content hashes checked on every read, and documents it all in `DATA_CARD.md`
+
 ## 2026-11-15
 - [FEAT] [A2.2] — router, queues and audit log: router rules 1–6 with every refusing rule recorded, exactly one disposition per alert with a reconciliation check, priority and standard queues, a hash-chained append-only audit log with per-alert views, and a guard that refuses tool definitions in any model request
 - [FEAT] [N1.4] — policy as code: `policy.md` v1 with signal, clear and no-clear clauses; predicates parsed on an `ast` allow-list and type-checked against the alert fields at load, never `eval`; `clearing_allowed` for the router with fail-safe handling of missing values

@@ -20,6 +20,13 @@ def offenders():
                 name = f.attr if isinstance(f, ast.Attribute) else getattr(f, "id", None)
                 if name not in CALLS:
                     continue
+                if (
+                    name == "open"
+                    and isinstance(f, ast.Attribute)
+                    and isinstance(f.value, ast.Name)
+                    and f.value.id == "os"
+                ):
+                    continue  # os.open returns a file descriptor; there is no text layer
                 if name == "open":
                     mode = (
                         node.args[1]

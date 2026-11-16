@@ -1,0 +1,49 @@
+{
+  "columns": [
+    "trans_id",
+    "card_id",
+    "ts",
+    "merchant",
+    "category",
+    "amt",
+    "is_fraud"
+  ],
+  "data_label": "simulated",
+  "id_salt_sha256": "c88948c9f663373d0cfac54786a4a67f08579ca0b1663ca964aa1f77c293fc58",
+  "schema_version": "1.0",
+  "source": "kartik2112/fraud-detection",
+  "source_sha256": {
+    "fraudTest.csv": "12d553ab19440c752d2531ee1af44bb64f12cc3d3839f1649f19e81c230545f0",
+    "fraudTrain.csv": "fd7139200dbfcbed0b6742bbe05a4f1abce532c4fef20918228a651647a3e75d"
+  },
+  "splits": {
+    "test": {
+      "cards": 924,
+      "first_ts": "2020-06-21T12:14:25",
+      "fraud": 2145,
+      "fraud_rate": 0.00386,
+      "last_ts": "2020-12-31T23:59:34",
+      "rows": 555719,
+      "sha256": "9bcbd8083c4d0a395d65a959d9db4759bd0556135d6664564ad9f26533e78198"
+    },
+    "train": {
+      "cards": 960,
+      "first_ts": "2019-01-01T00:00:18",
+      "fraud": 5220,
+      "fraud_rate": 0.005644,
+      "last_ts": "2019-12-31T23:59:53",
+      "rows": 924850,
+      "sha256": "ba7bc247a964c56eb52e7eb397b0784ddced36a70325de741eb5bf34f2a1cdbe"
+    },
+    "val": {
+      "cards": 931,
+      "first_ts": "2020-01-01T00:00:57",
+      "fraud": 2286,
+      "fraud_rate": 0.006148,
+      "last_ts": "2020-06-21T12:13:37",
+      "rows": 371825,
+      "sha256": "bc79cfe4189398e7804a41ee4c3caa61ce9e27e6c1c89b56614bb295b88c5f0d"
+    }
+  },
+  "val_start": "2020-01-01T00:00:00"
+}

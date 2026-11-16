@@ -10,7 +10,7 @@ build/
 .harness/
 .fraud/
 results/
-data/
+/data/
 .env
 .DS_Store
 .kaggle/

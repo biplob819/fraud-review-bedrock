@@ -11,6 +11,8 @@ dependencies = [
     "pydantic>=2.7",
     "pyyaml>=6",
     "markdown-it-py>=3",  # policy.md is read as CommonMark, the way a reviewer sees it
+    "pandas>=2.2",
+    "pyarrow>=17",
 ]
 
 [project.urls]
