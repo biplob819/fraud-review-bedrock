@@ -25,6 +25,14 @@ dependencies = [
 [project.urls]
 Homepage = "https://github.com/biplob819/fraud-review-bedrock"
 
+[project.entry-points."evalkit.scorers"]
+clause_valid = "fraudreview.scorers:clause_valid"
+field_valid = "fraudreview.scorers:field_valid"
+protected_clean = "fraudreview.scorers:protected_clean"
+driver_agreement = "fraudreview.scorers:driver_agreement"
+value_outcome = "fraudreview.scorers:value_outcome"
+rule_compliant = "fraudreview.scorers:rule_compliant"
+
 [project.scripts]
 fraud = "fraudreview.cli:main"
 
