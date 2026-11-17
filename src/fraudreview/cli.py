@@ -73,7 +73,33 @@ def build_parser() -> argparse.ArgumentParser:
     )
     fr = sub.add_parser("freeze", help="record the settings the eval run must match (C2)")
     fr.add_argument("--config", type=Path, default=Path("config.yaml"))
+    dc = sub.add_parser(
+        "demo-cache", help="write the review screen's replay file from a finished run (D-15)"
+    )
+    dc.add_argument("--run", type=Path, required=True, help="a finished run folder")
+    dc.add_argument(
+        "--alerts", type=Path, required=True, help="Alert views (results/baseline/alerts_<split>)"
+    )
+    dc.add_argument("--out", type=Path, default=Path("demo/replay.jsonl"))
+    dc.add_argument(
+        "--max-cases", type=int, help="keep the first n cases in queue order (holds first)"
+    )
     return ap
+
+
+def _demo_cache(args: argparse.Namespace) -> int:
+    from fraudreview.demo_cache import DemoCacheError, write_replay
+
+    if args.max_cases is not None and args.max_cases < 1:
+        print("fraud demo-cache: --max-cases must be at least 1", file=sys.stderr)
+        return 2
+    try:
+        n, size = write_replay(args.run, args.alerts, args.out, args.max_cases)
+    except DemoCacheError as exc:
+        print(f"fraud demo-cache: {exc}", file=sys.stderr)
+        return 2
+    print(f"wrote {args.out}: {n} held or escalated cases, {size} bytes (simulated data)")
+    return 0
 
 
 def _triage(args: argparse.Namespace) -> int:
@@ -443,6 +469,8 @@ def _dispatch(argv: list[str] | None) -> int:
         return _triage(args)
     if args.command == "freeze":
         return _freeze(args)
+    if args.command == "demo-cache":
+        return _demo_cache(args)
     parser.print_help()
     return 0
 
