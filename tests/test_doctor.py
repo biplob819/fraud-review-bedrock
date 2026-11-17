@@ -304,7 +304,8 @@ def test_evalkit_is_pinned_to_an_exact_commit_and_imports():
     ]
     pin = next(x for x in deps if x.startswith("evalkit-harness"))  # exact in every installer
     assert re.fullmatch(
-        r"evalkit-harness @ git\+https://github\.com/biplob819/evalkit@[0-9a-f]{40}", pin
+        r"evalkit-harness(\[[a-z,]+\])? @ git\+https://github\.com/biplob819/evalkit@[0-9a-f]{40}",
+        pin,
     )
     check = d.check_evalkit()
     assert check.status == "ok" and d.EVALKIT_VERSION in check.detail

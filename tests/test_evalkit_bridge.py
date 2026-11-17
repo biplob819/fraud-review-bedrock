@@ -226,7 +226,9 @@ def test_value_shares_counts_every_reason_and_agrees_with_valuecheck():
 def test_evalkit_is_pinned_to_the_v0_3_commit_and_its_api_imports():
     project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     pin = next(x for x in project["project"]["dependencies"] if x.startswith("evalkit-harness"))
-    assert pin == f"evalkit-harness @ git+https://github.com/biplob819/evalkit@{PIN}"
+    assert (
+        pin == f"evalkit-harness[anthropic,openai] @ git+https://github.com/biplob819/evalkit@{PIN}"
+    )
     assert PIN in (ROOT / "uv.lock").read_text(encoding="utf-8")
     from evalkit.scorers import (  # noqa: F401
         Rule,
