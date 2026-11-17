@@ -36,7 +36,7 @@ Generated from Tech Spec §11.2; edit here from now on and keep the Tech Spec in
 | Node | Title | Depends on | Verified by | Deliverable | Stories |
 | --- | --- | --- | --- | --- | --- |
 | **E2.1** | Metrics and intervals | A2.1, A2.2 | node_converge + verifier | Leakage, recall versus baseline, auto-clear rate and precision, minutes, cost, latency, intervals, thresholds | US1, US2 |
-| **E2.5** | EvalKit v0.3.0 capabilities | E2.1 | node_converge + verifier | In the EvalKit repo: rule-compliance scorer, structured-evidence faithfulness with value checks, monitoring and drift; released as v0.3.0 and pinned here (OWNER D-38) | US4 |
+| **E2.5** | EvalKit v0.3.0 capabilities | E2.1 | node_converge + verifier | In the EvalKit repo: rule-compliance scorer and structured-evidence faithfulness with value checks, released as v0.3.0 and pinned here, with a bridge module; monitoring follows in E2.4 from v0.4.0 (OWNER D-38) | US4 |
 | **E2.2** | Explanation checks | A2.4, A2.1, N1.4, E2.5 | node_converge + verifier | Validity checks, value checks, protected scan, driver agreement, EvalKit faithfulness with two judges, our checks as EvalKit scorers, prompt-injection probe, judge calibration, paired comparisons, mismatch picks | US4 |
 | **E2.4** | Monitoring and improvement | E2.1, E2.2, E2.5, A2.5 | node_converge + verifier | Run history, alarm bands, drift check, trend data, experiment ledger, dev-set improvement loop, freeze guard (OWNER D-36) | US1, US4 |
 | **E2.3** | Summary and dashboard | E2.1, E2.2, E2.4, A2.5 | node_converge + verifier | `fraud evaluate`, `summary.json`, `fraud report`, deployed dashboard, honesty gate live | US1–US4 |

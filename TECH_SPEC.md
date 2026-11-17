@@ -599,7 +599,7 @@ Status vocabulary: `not-started | spec | building | green`. Build status comes f
 | **A2.4** | Stage 2 triage | A2.3 | Sonnet 5.5 stage, `Stage2Output`, retry-once-then-escalate, refusal handling | US1, US3 |
 | **A2.5** | Batch triage run | A2.4 | `fraud triage`, concurrency within quota, dev tuning runs, frozen eval run of 500, golden recording | US1, US2 |
 | **E2.1** | Metrics and intervals | A2.1, A2.2 | Leakage, recall versus baseline, auto-clear rate and precision, minutes, cost, latency, intervals, thresholds | US1, US2 |
-| **E2.5** | EvalKit v0.3.0 capabilities | E2.1 | In the EvalKit repo: rule-compliance scorer, structured-evidence faithfulness with value checks, monitoring and drift; released as v0.3.0 and pinned here (OWNER D-38) | US4 |
+| **E2.5** | EvalKit v0.3.0 capabilities | E2.1 | In the EvalKit repo: rule-compliance scorer and structured-evidence faithfulness with value checks, released as v0.3.0 and pinned here, with a bridge module; monitoring follows in E2.4 from v0.4.0 (OWNER D-38) | US4 |
 | **E2.2** | Explanation checks | A2.4, A2.1, N1.4, E2.5 | Validity checks, value checks, protected scan, driver agreement, EvalKit faithfulness with two judges, our checks as EvalKit scorers, prompt-injection probe, judge calibration, paired comparisons, mismatch picks | US4 |
 | **E2.4** | Monitoring and improvement | E2.1, E2.2, E2.5, A2.5 | Run history, alarm bands, drift check, trend data, experiment ledger, dev-set improvement loop, freeze guard (OWNER D-36) | US1, US4 |
 | **E2.3** | Summary and dashboard | E2.1, E2.2, E2.4, A2.5 | `fraud evaluate`, `summary.json`, `fraud report`, deployed dashboard, honesty gate live | US1–US4 |
@@ -856,6 +856,7 @@ Each row becomes one line in `docs/graph/catalog.tsv` with status `not-started`.
 | MON-02 | Alarm bands in `config.yaml`: leakage above 0 exits 1; schema-error rate, refusal rate, cost per 1,000 and p95 latency outside their bands raise warnings in the summary and report | D-36, E7 |
 | MON-03 | Drift check with EvalKit's PSI monitor (EVK-03): per agent-visible feature between the frozen eval alerts and a new batch; warn above 0.1, alarm above 0.25 | D-36, D-38 |
 | MON-04 | Trend data for the dashboard, read from `runs.jsonl` | D-36 |
+| MON-05 | EvalKit monitoring once released (B5.7, v0.4.0): run history, alarm bands, PSI drift and a trend chart from EvalKit replace the local versions; until then E2.4 uses EvalKit's v0.3.0 run-vs-run compare | D-38 |
 | IMP-01 | Experiment ledger `docs/measurements/experiments.jsonl`: each dev-set change with hypothesis, change hash, metrics, paired result and keep-or-revert verdict, kept or not | D-36 |
 | IMP-02 | Improvement loop on the dev set only: worst cases by a fixed rule, one change at a time, kept only if leakage stays 0 and the paired gain survives Holm | D-36 |
 | IMP-03 | Freeze guard: a policy or prompt hash that differs from the eval run's forces a fresh 500 from the remaining test-period alerts before publishing (EvalKit CAL-05) | D-36 |
@@ -866,7 +867,6 @@ Each row becomes one line in `docs/graph/catalog.tsv` with status `not-started`.
 | --- | --- | --- |
 | EVK-01 | EvalKit rule-compliance scorer: cited rule ids exist in a rule set and their machine-checked conditions hold on the input; used here for clause validity and router-rule checks | D-38, B4, B8 |
 | EVK-02 | EvalKit structured-evidence faithfulness: a record rendered as numbered evidence sentences for the two-judge scorer, plus a value check of numbers and comparisons in reasons against the record | D-38, D-11, C3 |
-| EVK-03 | EvalKit monitoring: run-history file, alarm bands, a PSI drift check per feature and a trend chart in its report (EvalKit B5.7, v0.4.0; until then E2.4 uses EvalKit's v0.3.0 run-vs-run compare) | D-38 |
 | EVK-04 | EvalKit pinned here at the v0.3.0 release (B5.13 rule compliance and structured evidence, public `faithfulness`), then v0.4.0 for monitoring; its new public symbols import at the pinned version | E10, D-38 |
 
 **E2.3 Summary and dashboard**
