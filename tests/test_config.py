@@ -154,3 +154,12 @@ def test_deep_nesting_is_a_config_error(tmp_path):
     p.write_text(GOOD + "deep: " + "[" * 5000 + "]" * 5000 + "\n", encoding="utf-8")
     with pytest.raises(ConfigError):
         load_config(p)
+
+
+def test_max_output_tokens_stays_within_the_non_streaming_limit(tmp_path):
+    p = tmp_path / "c.yaml"
+    p.write_text(
+        GOOD.replace("max_output_tokens: 8192", "max_output_tokens: 16001"), encoding="utf-8"
+    )
+    with pytest.raises(ConfigError, match="max_output_tokens"):
+        load_config(p)

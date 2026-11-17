@@ -29,7 +29,8 @@ class ConfigError(Exception):
 class StageConfig(Model):
     model: Text  # model id for the provider (Claude API or Bedrock), verified in W0.2
     effort: Effort
-    max_output_tokens: Annotated[int, Field(ge=256, le=128_000)]
+    # the SDK refuses non-streaming requests above about 21,333 output tokens (N1.3)
+    max_output_tokens: Annotated[int, Field(ge=256, le=16_000)]
 
 
 class RunConfig(Model):

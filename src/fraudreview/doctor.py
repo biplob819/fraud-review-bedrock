@@ -189,7 +189,10 @@ def check_smoke(client: Any, model: str, prices: dict[str, Any] | None) -> Check
         m = client.messages.create(**guard_request(body))
     except Exception as exc:
         return Check(name, "fail", type(exc).__name__)
-    used_in, used_out = m.usage.input_tokens, m.usage.output_tokens
+    used_in = getattr(getattr(m, "usage", None), "input_tokens", None)
+    used_out = getattr(getattr(m, "usage", None), "output_tokens", None)
+    if not (isinstance(used_in, int) and isinstance(used_out, int)):
+        return Check(name, "warn", "replied, but usage was unreadable")
     cost = ""
     if prices and model in prices:
         usd = (used_in * prices[model]["input"] + used_out * prices[model]["output"]) / 1e6
@@ -290,13 +293,13 @@ def _boto3_client(service: str, region: str) -> Any:
 def _anthropic_client() -> Any:
     import anthropic
 
-    return anthropic.Anthropic()
+    return anthropic.Anthropic(max_retries=0)
 
 
 def _mantle_client(region: str) -> Any:
     from anthropic.lib.bedrock._mantle import AnthropicBedrockMantle
 
-    return AnthropicBedrockMantle(aws_region=region)
+    return AnthropicBedrockMantle(aws_region=region, max_retries=0)
 
 
 # ---------------------------------------------------------------- preflight record (PRE-01..03)

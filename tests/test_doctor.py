@@ -478,3 +478,33 @@ def test_committed_preflight_record_is_green():
         assert m["rate_limits"]["requests-limit"] > 0
     assert config.concurrency <= record["max_concurrency"]
     assert 0 < record["total_cost_usd"] < 0.05
+
+
+@pytest.mark.safety
+def test_every_doctor_send_passes_the_request_guard(tmp_path, monkeypatch):
+    seen: list[dict[str, Any]] = []
+    real = d.guard_request
+
+    def spy(body: Any) -> Any:
+        seen.append(dict(body))
+        return real(body)
+
+    monkeypatch.setattr(d, "guard_request", spy)
+    run_api(tmp_path, offline=False, smoke=True, anthropic=lambda: FakeMantle())
+    assert [b["model"] for b in seen] == [API_HAIKU, API_SONNET]  # both smoke sends
+    seen.clear()
+    config = load_config(ROOT / "config.yaml")
+    d.record_preflight(
+        FakeRecorder(), config, d.price_table(ROOT / "prices.yaml", "anthropic"), "x"
+    )
+    assert len(seen) == 6  # per model: one structured call and a cache pair
+
+    def refuse(body: Any) -> Any:
+        raise d_guard_error("tools")
+
+    from fraudreview.router import GuardError as d_guard_error
+
+    monkeypatch.setattr(d, "guard_request", refuse)
+    client = FakeMantle()
+    checks = by_name(run_api(tmp_path, offline=False, smoke=True, anthropic=lambda: client))
+    assert client.called == [] and checks[f"smoke {API_HAIKU}"].status == "fail"

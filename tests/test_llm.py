@@ -100,10 +100,13 @@ class Unreadable(Exception):
         self.inner = inner
 
 
+POLICY_TEXT = (ROOT / "policy.md").read_text(encoding="utf-8")  # a realistic cached prefix
+
+
 def body(stage: int = 1) -> dict[str, Any]:
     model = Stage1Output if stage == 1 else Stage2Output
     cfg = CONFIG.stage1 if stage == 1 else CONFIG.stage2
-    return llm.build_body(cfg, ["You recommend; people decide.", "Policy text"], "{}", model)
+    return llm.build_body(cfg, ["You recommend; people decide.", POLICY_TEXT], "{}", model)
 
 
 def run(client: Any, b: dict[str, Any] | None = None, model: Any = Stage1Output) -> Any:
@@ -229,6 +232,7 @@ def test_config_errors_raise_exit_2_never_transport_and_show_no_secret():
     with pytest.raises(KeyError):  # an unknown bug is not swallowed as transport
         run(Script(KeyError("x")))
     for missing in (
+        ValueError("Streaming is required for operations that may take longer than 10 minutes"),
         TypeError("Could not resolve authentication method. Expected api_key to be set"),
         RuntimeError("Could not resolve AWS credentials from session"),
         anthropic.AnthropicError("No AWS region found"),
@@ -323,6 +327,16 @@ def test_unreadable_billed_replies_are_priced_at_worst_case(monkeypatch):
             2,
             "schema",
         ),
+        (  # more output than max_tokens allows: unreadable, priced at the worst case
+            [json_reply(message_json({"input_tokens": 700, "output_tokens": 4097}))],
+            1,
+            None,
+        ),
+        (  # more input than the body has characters: unreadable
+            [json_reply(message_json({"input_tokens": 10_000_000, "output_tokens": 5}))],
+            1,
+            None,
+        ),
         (  # implausible usage (it would overflow the price): unreadable, priced at the worst
             [json_reply(message_json({"input_tokens": 10**400, "output_tokens": 5}))],
             1,
@@ -367,12 +381,16 @@ def test_settled_call_records_spend_on_every_path():
     with pytest.raises(KeyError):  # an unknown failure: the whole reservation is recorded
         asyncio.run(go(Script(KeyError("bug")), cap))
     assert cap.actual == pytest.approx(worst) and cap.reserved == {}
-    tight = cost.SpendCap(worst * 1.0000001)  # room for one call; it bills, then the cap stops
-    tight.actual = worst * 0.9  # simulate earlier spend so the commit passes the cap
-    tight.max_usd = worst * 1.0000001 + worst * 0.9
+
+    class StopsAfter(cost.SpendCap):  # a commit that records, then stops the run
+        async def commit(self, token: int, actual_usd: float) -> None:
+            await super().commit(token, actual_usd)
+            raise cost.CapReached("stop")
+
+    stopping = StopsAfter(5.0)
     with pytest.raises(cost.CapReached):
-        asyncio.run(go(Script(reply(output_tokens=4096, input_tokens=100000)), tight))
-    assert tight.reserved == {} and tight.actual > tight.max_usd  # recorded, then stopped
+        asyncio.run(go(Script(reply()), stopping))
+    assert stopping.reserved == {} and stopping.actual > 0  # recorded, then stopped
 
     async def cancelled() -> None:
         class Hang(Script):

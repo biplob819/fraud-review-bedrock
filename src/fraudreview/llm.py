@@ -25,7 +25,7 @@ from fraudreview.router import guard_request
 from fraudreview.schemas import Stage1Output, Stage2Output, Tokens, TriageDecision
 
 ErrorKind = Literal["schema", "refusal", "transport"]
-CODE_VERSION = "4"  # the `model_call` step; bump with any change to this module (BRK-03)
+CODE_VERSION = "5"  # the `model_call` step; bump with any change to this module (BRK-03)
 MAX_TRANSPORT_ATTEMPTS = 6  # §2.4
 MAX_SCHEMA_ATTEMPTS = 2  # one retry, same prompt (FR7)
 BACKOFF_BASE_S = 1.0
@@ -107,6 +107,15 @@ def _usage(u: Any) -> Tokens | None:
     return Tokens(input=inp, output=out, cache_read=cache_read or 0, cache_write=cache_write or 0)
 
 
+def _plausible(t: Tokens, body: dict[str, Any]) -> bool:
+    """One attempt cannot read more input than the body has characters (a token is at least one
+    character, ASCII-escaped), nor write more than `max_tokens`."""
+    import json
+
+    chars = len(json.dumps(body))
+    return t.input + t.cache_read + t.cache_write <= chars and t.output <= body["max_tokens"]
+
+
 def _add(a: Tokens, b: Tokens) -> Tokens:
     return Tokens(
         input=a.input + b.input,
@@ -140,6 +149,8 @@ def _classify(exc: BaseException) -> Literal["transient", "config"] | None:
             return "config"
     except ImportError:  # pragma: no cover - botocore ships with the bedrock extra
         pass
+    if isinstance(exc, ValueError) and "streaming is required" in str(exc).lower():
+        return "config"  # the SDK refuses before sending: max_output_tokens is too high
     if isinstance(exc, (TypeError, RuntimeError)) and any(
         p in str(exc).lower() for p in CREDENTIAL_PHRASES
     ):
@@ -238,6 +249,8 @@ async def call_model(
                 return done(None, "schema")
             continue
         metered = _usage(getattr(message, "usage", None))
+        if metered is not None and not _plausible(metered, body):
+            metered = None  # more than this body could bill: treat as unreadable
         if metered is None:  # billed, but we cannot read what it cost: price the worst case
             unmetered += 1
         else:
