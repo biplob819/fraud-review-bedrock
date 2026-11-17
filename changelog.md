@@ -3,6 +3,7 @@
 Format: `[TYPE] [NODE] — summary`. Types: FEAT, FIX, DOCS, HARNESS, RELEASE.
 
 ## 2026-11-17
+- [FEAT] [W0.2] — access pre-flight: OWNER D-35 runs the published results on the Claude API (Bedrock stays supported); `fraud doctor` checks Python, config, per-provider prices, the Kaggle token and the EvalKit v0.2.0 pin offline, then the key and model listing (or Bedrock identity, authorisation and quotas) online, never printing a secret; `--smoke` and `--record` prove live structured replies, cache reads and rate limits in `docs/measurements/preflight.json` for about half a cent
 - [FEAT] [E2.1] — metrics and intervals: fraud leakage with its exact Clopper–Pearson bound when none leak, end-to-end recall against the baseline as a paired difference, auto-clear rate and precision, stage shares, queue mix, bootstrap intervals for modelled minutes and cost per 1,000, nearest-rank latency over live calls, and threshold checks where leakage above zero exits 1
 - [FEAT] [A2.1] — features, baseline, alerts and SHAP: point-in-time card features with a truncation-property leak test, a deterministic LightGBM baseline on the seven allow-listed fields, the D-9 threshold (98% validation recall, lowered if alerts would be mostly fraud), seeded dev (100) and eval (500) alert samples, and SHAP top-five drivers kept in separate truth files; `fraud baseline`
 

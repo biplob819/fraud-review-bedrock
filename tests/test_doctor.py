@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 import tomllib
 from datetime import date, timedelta
@@ -16,7 +17,19 @@ from fraudreview import doctor as d
 from fraudreview.config import load_config
 
 ROOT = Path(__file__).resolve().parent.parent
-HAIKU, SONNET = "anthropic.claude-haiku-5-5", "anthropic.claude-sonnet-5-5"
+HAIKU, SONNET = "anthropic.claude-haiku-5-5", "anthropic.claude-sonnet-5-5"  # Bedrock ids
+API_HAIKU, API_SONNET = "claude-haiku-5-5", "claude-sonnet-5-5"  # Claude API ids (D-35)
+KEY_ENV = {"ANTHROPIC_API_KEY": "sk-ant-supersecret"}
+
+
+def bedrock_config(tmp_path: Path) -> Path:
+    """The committed config switched to provider bedrock with the Bedrock model ids."""
+    text = (ROOT / "config.yaml").read_text(encoding="utf-8")
+    text = text.replace("provider: anthropic", "provider: bedrock")
+    text = text.replace("model: claude-", "model: anthropic.claude-")
+    path = tmp_path / "bedrock.yaml"
+    path.write_text(text, encoding="utf-8")
+    return path
 
 
 class FakeAWS:
@@ -64,17 +77,38 @@ class FakeAWS:
 
 
 class FakeMantle:
-    def __init__(self) -> None:
-        self.models: list[str] = []
-        self.messages = self
+    """Stands in for the Mantle or first-party client (same Messages shape, D-27)."""
+
+    def __init__(self, listed: tuple[str, ...] = (API_HAIKU, API_SONNET), fail: bool = False):
+        self.called: list[str] = []
+        self.messages = self.models = self  # client.messages.create, client.models.list
+        self.listed, self.fail, self.listings = listed, fail, 0
+
+    def list(self, **_: Any) -> list[Any]:  # client.models.list
+        self.listings += 1
+        if self.fail:
+            raise RuntimeError("AuthenticationError sk-ant-supersecret")
+        return [SimpleNamespace(id=m) for m in self.listed]
 
     def create(self, **kw: Any) -> Any:
-        self.models.append(kw["model"])
+        self.called.append(kw["model"])
         assert kw["max_tokens"] <= 16
         return SimpleNamespace(usage=SimpleNamespace(input_tokens=14, output_tokens=3))
 
 
 def run(tmp_path: Path, **kw: Any) -> list[d.Check]:
+    """Bedrock provider (the AWS path)."""
+    return d.run_checks(
+        bedrock_config(tmp_path),
+        ROOT / "prices.yaml",
+        kaggle=lambda: "Bearer KGAT_secret",
+        **kw,
+    )
+
+
+def run_api(tmp_path: Path, **kw: Any) -> list[d.Check]:
+    """The committed config: provider anthropic (D-35)."""
+    kw.setdefault("env", KEY_ENV)
     return d.run_checks(
         ROOT / "config.yaml", ROOT / "prices.yaml", kaggle=lambda: "Bearer KGAT_secret", **kw
     )
@@ -108,33 +142,37 @@ def test_smoke_calls_each_model_once_and_prices_the_call(tmp_path):
     checks = by_name(
         run(tmp_path, offline=False, smoke=True, aws=FakeAWS(), mantle=lambda r: mantle)
     )
-    assert mantle.models == [HAIKU, SONNET]
+    assert mantle.called == [HAIKU, SONNET]
     assert checks[f"smoke {HAIKU}"].status == "ok"
     want = (14 * 0.11 + 3 * 0.55) / 1e6
     assert f"${want:.6f}" in checks[f"smoke {HAIKU}"].detail
     no_smoke = FakeMantle()
     run(tmp_path, offline=False, aws=FakeAWS(), mantle=lambda r: no_smoke)
-    assert no_smoke.models == []
+    assert no_smoke.called == []
 
 
 # ------------------------------------------------------------------ PRE-04 prices
 
 
 @pytest.mark.contract
-def test_prices_cover_every_configured_model_in_the_config_region():
-    config = load_config(ROOT / "config.yaml")
+def test_prices_cover_every_configured_model_for_both_providers(tmp_path):
     data = yaml.safe_load((ROOT / "prices.yaml").read_text(encoding="utf-8"))
-    assert data["region"] == config.region == "us-east-2"
     assert data["unit"] == "per_million_tokens" and data["currency"] == "USD"
-    for model in (config.stage1.model, config.stage2.model):
-        assert set(d.PRICE_FIELDS) <= set(data["models"][model])
-    assert d.check_prices(ROOT / "prices.yaml", config).status == "ok"
-    haiku = data["models"][HAIKU]
-    assert haiku["input"] == pytest.approx(0.11) and haiku["output"] == pytest.approx(0.55)
+    for path in (ROOT / "config.yaml", bedrock_config(tmp_path)):
+        config = load_config(path)
+        table = data["providers"][config.provider]["models"]
+        for model in (config.stage1.model, config.stage2.model):
+            assert set(d.PRICE_FIELDS) <= set(table[model])
+        assert d.check_prices(ROOT / "prices.yaml", config).status == "ok"
+    assert data["providers"]["bedrock"]["region"] == "us-east-2"
+    api = data["providers"]["anthropic"]["models"][API_HAIKU]
+    assert api["input"] == pytest.approx(0.10) and api["output"] == pytest.approx(0.50)
+    aws = data["providers"]["bedrock"]["models"][HAIKU]
+    assert aws["input"] == pytest.approx(0.11) and aws["output"] == pytest.approx(0.55)
 
 
 def test_price_problems_fail_and_old_prices_warn(tmp_path):
-    config = load_config(ROOT / "config.yaml")
+    config = load_config(bedrock_config(tmp_path))
     base = yaml.safe_load((ROOT / "prices.yaml").read_text(encoding="utf-8"))
 
     def check(edit, today=None):
@@ -144,15 +182,71 @@ def test_price_problems_fail_and_old_prices_warn(tmp_path):
         path.write_text(yaml.safe_dump(data), encoding="utf-8")
         return d.check_prices(path, config, today=today)
 
-    assert check(lambda x: x.update(region="us-east-1")).status == "fail"
-    assert check(lambda x: x["models"].pop(SONNET)).status == "fail"
-    assert check(lambda x: x["models"][HAIKU].update(input=-1)).status == "fail"
-    assert check(lambda x: x["models"][HAIKU].update(input="cheap")).status == "fail"
+    aws = lambda x: x["providers"]["bedrock"]  # noqa: E731
+    assert check(lambda x: aws(x).update(region="us-east-1")).status == "fail"
+    assert check(lambda x: aws(x)["models"].pop(SONNET)).status == "fail"
+    assert check(lambda x: aws(x)["models"][HAIKU].update(input=-1)).status == "fail"
+    assert check(lambda x: aws(x)["models"][HAIKU].update(input="cheap")).status == "fail"
+    assert check(lambda x: x["providers"].pop("bedrock")).status == "fail"
     assert check(lambda x: x.update(unit="per_token")).status == "fail"
     checked = date.fromisoformat(base["checked"])
     assert check(lambda x: None, today=checked + timedelta(days=91)).status == "warn"
     assert check(lambda x: None, today=checked - timedelta(days=5)).status == "fail"
     assert check(lambda x: None, today=checked + timedelta(days=10)).status == "ok"
+    # the Claude API table has no Region to match
+    api = load_config(ROOT / "config.yaml")
+    assert d.check_prices(ROOT / "prices.yaml", api).status == "ok"
+
+
+# ------------------------------------------------------------------ D-35 Claude API provider
+
+
+def test_api_provider_lists_models_and_smokes_without_aws(tmp_path):
+    aws, client = FakeAWS(), FakeMantle()
+    checks = by_name(
+        run_api(tmp_path, offline=False, smoke=True, aws=aws, anthropic=lambda: client)
+    )
+    assert aws.calls == [] and checks["aws"].status == "skip"
+    assert checks["anthropic key"].status == "ok"
+    for model in (API_HAIKU, API_SONNET):
+        assert checks[f"access {model}"].status == "ok"
+    assert client.called == [API_HAIKU, API_SONNET] and client.listings == 1
+    want = (14 * 0.10 + 3 * 0.50) / 1e6
+    assert f"${want:.6f}" in checks[f"smoke {API_HAIKU}"].detail
+    quiet = FakeMantle()
+    run_api(tmp_path, offline=False, anthropic=lambda: quiet)
+    assert quiet.called == []
+
+
+def test_api_provider_fails_without_key_or_listing(tmp_path):
+    called = []
+    no_key = by_name(run_api(tmp_path, offline=False, env={}, anthropic=lambda: called.append(1)))
+    assert no_key["anthropic key"].status == "fail" and called == []
+    bad = by_name(run_api(tmp_path, offline=False, env={"ANTHROPIC_API_KEY": "a b"}))
+    assert bad["anthropic key"].status == "fail"
+    missing = run_api(tmp_path, offline=False, anthropic=lambda: FakeMantle(listed=(API_HAIKU,)))
+    assert by_name(missing)[f"access {API_SONNET}"].status == "fail"
+    assert d.exit_code(missing) == 1
+    broken = run_api(tmp_path, offline=False, anthropic=lambda: FakeMantle(fail=True))
+    text = "\n".join(f"{c.name} {c.detail}" for c in broken)
+    assert "supersecret" not in text and by_name(broken)[f"access {API_HAIKU}"].status == "fail"
+
+
+@pytest.mark.safety
+def test_env_file_fills_only_unset_names_and_never_prints(tmp_path, capsys):
+    from fraudreview.cli import load_env_file
+
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "ANTHROPIC_API_KEY='sk-ant-supersecret'\nexport KAGGLE_API_TOKEN=KGAT_x\n# note\n"
+        "lower=skip\n",
+        encoding="utf-8",
+    )
+    environ = {"KAGGLE_API_TOKEN": "already"}
+    assert load_env_file(env_file, environ) == ["ANTHROPIC_API_KEY"]
+    assert environ == {"KAGGLE_API_TOKEN": "already", "ANTHROPIC_API_KEY": "sk-ant-supersecret"}
+    assert load_env_file(tmp_path / "missing", environ) == []
+    assert "supersecret" not in capsys.readouterr().out
 
 
 # ------------------------------------------------------------------ PRE-05 Kaggle
@@ -235,3 +329,77 @@ def test_cli_doctor_offline(capsys):
     )
     out = capsys.readouterr().out
     assert code in (0, 1) and "config" in out and "SKIP" in out
+
+
+# ------------------------------------------------------------------ PRE-01..03 live record (logic)
+
+
+class FakeRecorder:
+    """A Claude API client for record_preflight: structured replies, cache reads, headers."""
+
+    def __init__(self, reply: str = '{"ready": true, "model_family": "Claude"}', cache=True):
+        self.reply, self.cache, self.seen = reply, cache, set()
+        self.messages = self
+        self.with_raw_response = self
+        self.requests: list[dict[str, Any]] = []
+
+    def create(self, **kw: Any) -> Any:
+        self.requests.append(kw)
+        if "output_config" in kw and "format" in kw["output_config"]:
+            msg = SimpleNamespace(
+                content=[SimpleNamespace(type="text", text=self.reply)],
+                usage=SimpleNamespace(input_tokens=200, output_tokens=20),
+            )
+            headers = {"anthropic-ratelimit-requests-limit": "50"}
+            return SimpleNamespace(parse=lambda: msg, headers=headers)
+        key = (kw["model"], kw["system"][0]["text"])
+        hit = self.cache and key in self.seen
+        self.seen.add(key)
+        usage = SimpleNamespace(
+            input_tokens=16,
+            output_tokens=4,
+            cache_read_input_tokens=1000 if hit else 0,
+            cache_creation_input_tokens=0 if hit else 1000,
+        )
+        return SimpleNamespace(content=[], usage=usage)
+
+
+def test_record_preflight_proves_schema_cache_limits_and_cost():
+    config = load_config(ROOT / "config.yaml")
+    prices = d.price_table(ROOT / "prices.yaml", "anthropic")
+    client = FakeRecorder()
+    report = d.record_preflight(client, config, prices, "policy " * 600)
+    assert set(report["models"]) == {API_HAIKU, API_SONNET}
+    haiku = report["models"][API_HAIKU]
+    assert haiku["structured_reply_valid"] and haiku["cache"]["second_read_cache"]
+    assert haiku["rate_limits"]["requests-limit"] == 50
+    want = 200 * 0.10 + 20 * 0.50 + 2 * 16 * 0.10 + 2 * 4 * 0.50 + 1000 * 0.125 + 1000 * 0.01
+    assert haiku["cost_usd"] == pytest.approx(want / 1e6, abs=1e-6)
+    assert report["requests_per_minute_limit"] == 50 and report["max_concurrency"] == 8
+    assert report["config_concurrency"] <= report["max_concurrency"]
+    text = json.dumps(report)
+    assert "sk-ant" not in text and "request-id" not in text
+    with pytest.raises(ValueError):
+        d.record_preflight(FakeRecorder(reply='{"ready": "yes"}'), config, prices, "x")
+    cold = d.record_preflight(FakeRecorder(cache=False), config, prices, "x")
+    assert not cold["models"][API_HAIKU]["cache"]["second_read_cache"]
+
+
+def test_max_concurrency_follows_requests_per_minute():
+    assert d.max_concurrency(10_000) == 64
+    assert d.max_concurrency(48) == 8 and d.max_concurrency(1) == 1
+
+
+@pytest.mark.contract
+def test_committed_preflight_record_is_green():
+    record = json.loads(
+        (ROOT / "docs" / "measurements" / "preflight.json").read_text(encoding="utf-8")
+    )
+    config = load_config(ROOT / "config.yaml")
+    assert record["provider"] == config.provider
+    assert set(record["models"]) == {config.stage1.model, config.stage2.model}
+    for m in record["models"].values():
+        assert m["structured_reply_valid"] and m["cache"]["second_read_cache"]
+        assert m["rate_limits"]["requests-limit"] > 0
+    assert config.concurrency <= record["max_concurrency"]
+    assert 0 < record["total_cost_usd"] < 0.05

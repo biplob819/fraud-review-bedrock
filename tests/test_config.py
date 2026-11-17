@@ -22,15 +22,15 @@ def test_committed_config_loads():
         (lambda t: t.replace("effort: high", "effort: extreme"), "stage2.effort"),
         (
             lambda t: t.replace(
-                "region: us-east-2           # D-34: the project's own Region, "
-                "in-Region endpoint\n",
+                "region: us-east-2           # D-34: used when provider is bedrock "
+                "(in-Region endpoint)\n",
                 "",
             ),
             "region",
         ),
         (lambda t: t + "surprise: 1\n", "surprise"),
         (lambda t: t.replace("max_cost_usd: 5 ", "max_cost_usd: 0"), "max_cost_usd"),
-        (lambda t: t.replace("provider: bedrock", "provider: openai"), "provider"),
+        (lambda t: t.replace("provider: anthropic", "provider: openai"), "provider"),
         (lambda t: t.replace("metric: leakage", "metric: recall"), "thresholds.0.metric"),
     ],
 )

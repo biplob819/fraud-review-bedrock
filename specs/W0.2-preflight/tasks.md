@@ -1,6 +1,6 @@
 # W0.2 tasks
-- [x] Prices from the rate card; config switched to us-east-2 in-Region ids and $5 cap; EvalKit pinned.
-- [x] `fraud doctor` with injected clients; tests.
-- [ ] Owner: paid plan, use-case form, model terms (and quota if still 0).
-- [ ] `fraud doctor --smoke` recorded to `docs/measurements/preflight.json`; concurrency set from quotas.
+- [x] Prices from the rate cards (Claude API and Bedrock in-Region); EvalKit pinned; $5 cap.
+- [x] `fraud doctor` with injected clients for both providers; tests.
+- [x] OWNER D-35: switch to the Claude API with the owner's key (Bedrock access was refused on the AWS project).
+- [x] `fraud doctor --record docs/measurements/preflight.json` run live (about half a cent); concurrency 8 is within the limit.
 - [ ] Proof cells for PRE-01..07; converge twice; verifier.

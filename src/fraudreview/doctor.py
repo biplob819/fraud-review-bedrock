@@ -1,15 +1,19 @@
 """`fraud doctor`: is this machine and account ready to run? (W0.2, E5, Tech Spec §4.3).
 
 Offline checks need no network: Python, the run config, `prices.yaml`, the Kaggle token (never
-printed), and the pinned EvalKit. Online checks ask AWS who you are, whether each configured
-model is authorised in the project's Region, and what its quotas are. `--smoke` adds one tiny
-call per model (a fraction of a cent, D-33). Every AWS client is injectable for tests.
+printed), and the pinned EvalKit. Online checks depend on the provider (D-27). For `anthropic`
+(D-35) they check the API key is set (never printed) and that a free model listing shows each
+configured model. For `bedrock` they ask AWS who you are, whether each model is authorised in the
+project's Region, and what its quotas are. `--smoke` adds one tiny call per model (a fraction of
+a cent, D-33). Every client is injectable for tests.
 """
 
 from __future__ import annotations
 
+import json
+import os
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
@@ -50,24 +54,28 @@ def check_config(path: Path) -> tuple[Check, RunConfig | None]:
 
 
 def check_prices(path: Path, config: RunConfig | None, today: date | None = None) -> Check:
-    """Every configured model has all prices, for the config's Region, checked recently."""
+    """Every configured model has all prices in the config provider's table (and, for Bedrock,
+    for the config's Region), checked recently."""
     today = today or date.today()  # local date; the check date is written locally
     try:
         data = yaml.safe_load(path.read_text(encoding="utf-8"))
     except (OSError, yaml.YAMLError) as exc:
         return Check("prices", "fail", f"{path}: {type(exc).__name__}")
-    if not isinstance(data, dict) or not isinstance(data.get("models"), dict):
-        return Check("prices", "fail", f"{path}: no models table")
+    if not isinstance(data, dict) or not isinstance(data.get("providers"), dict):
+        return Check("prices", "fail", f"{path}: no providers table")
     if data.get("unit") != "per_million_tokens" or data.get("currency") != "USD":
         return Check("prices", "fail", f"{path}: expected USD per_million_tokens")
     problems = []
     if config is not None:
-        if data.get("region") != config.region:
-            problems.append(f"prices are for {data.get('region')}, config is {config.region}")
+        table = data["providers"].get(config.provider)
+        if not isinstance(table, dict) or not isinstance(table.get("models"), dict):
+            return Check("prices", "fail", f"{path}: no prices for provider {config.provider}")
+        if config.provider == "bedrock" and table.get("region") != config.region:
+            problems.append(f"prices are for {table.get('region')}, config is {config.region}")
         for model in (config.stage1.model, config.stage2.model):
-            row = data["models"].get(model)
+            row = table["models"].get(model)
             if not isinstance(row, dict):
-                problems.append(f"no prices for {model}")
+                problems.append(f"no {config.provider} prices for {model}")
                 continue
             for field in PRICE_FIELDS:
                 v = row.get(field)
@@ -85,6 +93,11 @@ def check_prices(path: Path, config: RunConfig | None, today: date | None = None
     if age > PRICE_MAX_AGE_DAYS:
         return Check("prices", "warn", f"checked {age} days ago; refresh from the rate card")
     return Check("prices", "ok", f"checked {age} days ago")
+
+
+def price_table(path: Path, provider: str) -> dict[str, Any]:
+    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    return ((data.get("providers") or {}).get(provider) or {}).get("models") or {}
 
 
 def check_kaggle(auth: Callable[[], str | None] | None = None) -> Check:
@@ -181,6 +194,30 @@ def check_smoke(client: Any, model: str, prices: dict[str, Any] | None) -> Check
     return Check(name, "ok", f"{used_in} in / {used_out} out tokens{cost}")
 
 
+def check_api_key(env: Mapping[str, str]) -> Check:
+    """The Claude API key is set; its value is never shown."""
+    key = env.get("ANTHROPIC_API_KEY", "")
+    if not key:
+        return Check("anthropic key", "fail", "ANTHROPIC_API_KEY is not set (see .env.example)")
+    if not key.isascii() or not key.isprintable() or " " in key:
+        return Check("anthropic key", "fail", "ANTHROPIC_API_KEY holds spaces or hidden characters")
+    return Check("anthropic key", "ok", "present (not shown)")
+
+
+def check_model_listed(client: Any, models: tuple[str, ...]) -> list[Check]:
+    """A free model listing: each configured model must be available to this key."""
+    try:
+        ids = {m.id for m in client.models.list(limit=1000)}
+    except Exception as exc:  # auth or network failure: name it, show no secrets
+        return [Check(f"access {m}", "fail", type(exc).__name__) for m in models]
+    return [
+        Check(f"access {m}", "ok", "listed for this key")
+        if m in ids
+        else Check(f"access {m}", "fail", "not listed for this key")
+        for m in models
+    ]
+
+
 DISPLAY = {
     "anthropic.claude-haiku-5-5": "Claude Haiku 5.5",
     "anthropic.claude-sonnet-5-5": "Claude Sonnet 5.5",
@@ -196,8 +233,11 @@ def run_checks(
     aws: Callable[[str, str], Any] | None = None,
     mantle: Callable[[str], Any] | None = None,
     kaggle: Callable[[], str | None] | None = None,
+    anthropic: Callable[[], Any] | None = None,
+    env: Mapping[str, str] | None = None,
 ) -> list[Check]:
-    """All checks in order. `aws(service, region)` and `mantle(region)` build clients."""
+    """All checks in order. `aws(service, region)`, `mantle(region)` and `anthropic()` build
+    clients; `env` stands in for the environment (the Claude API key)."""
     checks = [check_python()]
     cfg_check, config = check_config(config_path)
     checks.append(cfg_check)
@@ -207,8 +247,18 @@ def run_checks(
     if offline or config is None:
         checks.append(Check("aws", "skip", "offline" if offline else "no valid config"))
         return checks
-    if config.provider != "bedrock":
-        checks.append(Check("aws", "skip", f"provider is {config.provider}"))
+    models = (config.stage1.model, config.stage2.model)
+    if config.provider == "anthropic":
+        checks.append(Check("aws", "skip", "provider is anthropic"))
+        key = check_api_key(os.environ if env is None else env)
+        checks.append(key)
+        if key.status != "ok":
+            return checks
+        client = (anthropic or _anthropic_client)()
+        checks.extend(check_model_listed(client, models))
+        if smoke:
+            prices = price_table(prices_path, "anthropic")
+            checks.extend(check_smoke(client, m, prices) for m in models)
         return checks
     make = aws or _boto3_client
     checks.append(check_identity(make("sts", config.region)))
@@ -218,10 +268,9 @@ def run_checks(
         checks.append(check_model_access(bedrock, model))
         checks.append(check_quotas(quotas, DISPLAY.get(model, model)))
     if smoke:
-        data = yaml.safe_load(prices_path.read_text(encoding="utf-8")) or {}
+        prices = price_table(prices_path, "bedrock")
         client = (mantle or _mantle_client)(config.region)
-        for model in (config.stage1.model, config.stage2.model):
-            checks.append(check_smoke(client, model, data.get("models")))
+        checks.extend(check_smoke(client, m, prices) for m in models)
     return checks
 
 
@@ -231,10 +280,134 @@ def _boto3_client(service: str, region: str) -> Any:
     return boto3.client(service, region_name=region)
 
 
+def _anthropic_client() -> Any:
+    import anthropic
+
+    return anthropic.Anthropic()
+
+
 def _mantle_client(region: str) -> Any:
     from anthropic.lib.bedrock._mantle import AnthropicBedrockMantle
 
     return AnthropicBedrockMantle(aws_region=region)
+
+
+# ---------------------------------------------------------------- preflight record (PRE-01..03)
+
+READY_SCHEMA = {
+    "type": "object",
+    "properties": {"ready": {"type": "boolean"}, "model_family": {"type": "string"}},
+    "required": ["ready", "model_family"],
+    "additionalProperties": False,
+}
+LIMIT_HEADERS = (
+    "anthropic-ratelimit-requests-limit",
+    "anthropic-ratelimit-input-tokens-limit",
+    "anthropic-ratelimit-output-tokens-limit",
+)
+SECONDS_PER_CALL = 10  # a worker makes at most about 6 calls a minute (PRE-02)
+
+
+def _usage(u: Any) -> dict[str, int]:
+    return {
+        k: int(getattr(u, k, 0) or 0)
+        for k in (
+            "input_tokens",
+            "output_tokens",
+            "cache_read_input_tokens",
+            "cache_creation_input_tokens",
+        )
+    }
+
+
+def usage_cost(usage: dict[str, int], price: dict[str, float]) -> float:
+    """USD for one call; cache writes priced at the 5-minute rate (the default TTL)."""
+    return (
+        usage["input_tokens"] * price["input"]
+        + usage["output_tokens"] * price["output"]
+        + usage["cache_read_input_tokens"] * price["cache_read"]
+        + usage["cache_creation_input_tokens"] * price["cache_write_5m"]
+    ) / 1e6
+
+
+def structured_call(client: Any, model: str) -> tuple[dict[str, Any], dict[str, int], dict]:
+    """One schema-constrained call; returns the parsed reply, usage and the rate-limit headers."""
+    raw = client.messages.with_raw_response.create(
+        model=model,
+        max_tokens=1024,
+        output_config={"effort": "low", "format": {"type": "json_schema", "schema": READY_SCHEMA}},
+        messages=[{"role": "user", "content": "Are you ready? Name your model family."}],
+    )
+    m = raw.parse()
+    text = next(b.text for b in m.content if b.type == "text")
+    reply = json.loads(text)
+    if set(reply) != {"ready", "model_family"} or not isinstance(reply["ready"], bool):
+        raise ValueError("reply does not match the schema")
+    limits = {h: raw.headers.get(h) for h in LIMIT_HEADERS}
+    return reply, _usage(m.usage), limits
+
+
+def cache_pair(client: Any, model: str, system: str) -> list[dict[str, int]]:
+    """The same cacheable prompt twice; the second call should read the cache (PRE-03)."""
+    out = []
+    for _ in range(2):
+        m = client.messages.create(
+            model=model,
+            max_tokens=256,
+            output_config={"effort": "low"},
+            system=[{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
+            messages=[{"role": "user", "content": "Reply with the single word: ready"}],
+        )
+        out.append(_usage(m.usage))
+    return out
+
+
+def max_concurrency(requests_per_minute: int) -> int:
+    """The most workers the requests-per-minute limit allows, at one call per worker per
+    SECONDS_PER_CALL, capped at the config's own limit of 64."""
+    return max(1, min(64, requests_per_minute * SECONDS_PER_CALL // 60))
+
+
+def record_preflight(
+    client: Any, config: RunConfig, prices: dict[str, Any], system: str
+) -> dict[str, Any]:
+    """Live proof for W0.2 on the Claude API: a structured call and a cache pair per model, the
+    rate limits, and the cost of each call. No key, account or request id is recorded."""
+    models: dict[str, Any] = {}
+    total = 0.0
+    rpm: list[int] = []
+    for model in (config.stage1.model, config.stage2.model):
+        reply, usage, limits = structured_call(client, model)
+        pair = cache_pair(client, model, system)
+        calls = [usage, *pair]
+        cost = sum(usage_cost(u, prices[model]) for u in calls)
+        total += cost
+        if limits.get(LIMIT_HEADERS[0]) is not None:
+            rpm.append(int(limits[LIMIT_HEADERS[0]]))
+        models[model] = {
+            "structured_reply_valid": True,
+            "reply_ready": reply["ready"],
+            "rate_limits": {
+                h.removeprefix("anthropic-ratelimit-"): (int(v) if v is not None else None)
+                for h, v in limits.items()
+            },
+            "cache": {
+                "first": pair[0],
+                "second": pair[1],
+                "second_read_cache": pair[1]["cache_read_input_tokens"] > 0,
+            },
+            "calls": calls,
+            "cost_usd": round(cost, 6),
+        }
+    return {
+        "provider": config.provider,
+        "models": models,
+        "requests_per_minute_limit": min(rpm) if rpm else None,
+        "max_concurrency": max_concurrency(min(rpm)) if rpm else None,
+        "config_concurrency": config.concurrency,
+        "total_cost_usd": round(total, 6),
+        "seconds_per_call_assumed": SECONDS_PER_CALL,
+    }
 
 
 def exit_code(checks: list[Check]) -> int:

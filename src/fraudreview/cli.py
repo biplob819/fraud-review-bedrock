@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from collections.abc import MutableMapping
 from pathlib import Path
 
 from fraudreview import __version__
@@ -33,23 +34,79 @@ def build_parser() -> argparse.ArgumentParser:
     base.add_argument("--data-dir", type=Path, default=Path("data"), help="where splits are")
     base.add_argument("--out", type=Path, default=Path("results/baseline"), help="output folder")
     base.add_argument("--config", type=Path, default=Path("config.yaml"), help="run config (seed)")
-    doc = sub.add_parser("doctor", help="check this machine and AWS account are ready to run")
+    doc = sub.add_parser(
+        "doctor", help="check this machine and the model provider are ready to run"
+    )
     doc.add_argument("--config", type=Path, default=Path("config.yaml"))
     doc.add_argument("--prices", type=Path, default=Path("prices.yaml"))
-    doc.add_argument("--offline", action="store_true", help="local checks only; no AWS calls")
+    doc.add_argument("--offline", action="store_true", help="local checks only; no network calls")
     doc.add_argument(
         "--smoke", action="store_true", help="also one tiny call per model (a fraction of a cent)"
     )
+    doc.add_argument(
+        "--record",
+        type=Path,
+        help="also write the live preflight proof (structured call, cache pair, rate limits) "
+        "to this JSON file; Claude API provider only, about a cent",
+    )
     return ap
+
+
+def load_env_file(path: Path, environ: MutableMapping[str, str] | None = None) -> list[str]:
+    """Read `KEY=value` lines from a git-ignored `.env` into the environment. A variable that is
+    already set wins. Returns the names set (values are never printed)."""
+    import os
+    import re
+
+    env: MutableMapping[str, str] = os.environ if environ is None else environ
+    if not path.is_file():
+        return []
+    names = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        m = re.fullmatch(r"\s*(?:export\s+)?([A-Z][A-Z0-9_]*)=(.*)", line)
+        if not m or m.group(1) in env:
+            continue
+        value = m.group(2).strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in "'\"":
+            value = value[1:-1]
+        env[m.group(1)] = value
+        names.append(m.group(1))
+    return names
 
 
 def _doctor(args: argparse.Namespace) -> int:
     from fraudreview.doctor import exit_code, run_checks
 
+    load_env_file(Path(".env"))
     checks = run_checks(args.config, args.prices, offline=args.offline, smoke=args.smoke)
     for c in checks:
         print(f"{c.status.upper():<5} {c.name:<36} {c.detail}")
-    return exit_code(checks)
+    code = exit_code(checks)
+    if args.record and code == 0 and not args.offline:
+        return _record(args)
+    return code
+
+
+def _record(args: argparse.Namespace) -> int:
+    from fraudreview.config import load_config
+    from fraudreview.doctor import _anthropic_client, price_table, record_preflight
+
+    config = load_config(args.config)
+    if config.provider != "anthropic":
+        print("--record supports provider anthropic only", file=sys.stderr)
+        return 1
+    system = (ROOT / "policy.md").read_text(encoding="utf-8")
+    try:
+        report = record_preflight(
+            _anthropic_client(), config, price_table(args.prices, "anthropic"), system
+        )
+    except Exception as exc:  # name the failure; show no secrets
+        print(f"preflight failed: {type(exc).__name__}", file=sys.stderr)
+        return 1
+    args.record.parent.mkdir(parents=True, exist_ok=True)
+    args.record.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    print(f"recorded {args.record} (about ${report['total_cost_usd']:.4f})")
+    return 0
 
 
 def _baseline(args: argparse.Namespace) -> int:

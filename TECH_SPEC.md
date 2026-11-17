@@ -40,7 +40,7 @@ Each decision below seeds `docs/decisions.md` as D-1 to D-29.
 | D-24 | Gate 8 is the honesty gate (`scripts/honesty_check.py`), replacing EvalKit's judge gate; gate 12 is EvalKit's records gate (changelog entry, criteria naming every row, `RUN-STATE.md`) | Keep a judge gate; a docs-freshness gate | There is no judge regression set here; an unlabelled published number is this project's equivalent risk. The ported records gate is already proven |
 | D-25 | Repository operations run as the maintainer account `biplob819`, set per command, so no global `gh` state changes | Configure credentials globally | Same account as EvalKit; no side effects outside the repo |
 | OWNER D-26 | Released as an open-source project: MIT licence, community files, a quickstart that works with the user's own keys and a replay mode that needs none, semver releases tagged on GitHub (node D4.3) | A code dump with no release process | Others can run it on their own data and providers; the repo is a reusable asset, not a one-off |
-| D-27 | `provider: bedrock` or `anthropic` in `config.yaml`. Both use the anthropic SDK's Messages request shape (Mantle client or first-party client); Bedrock is the default and the published results run on it; the provider is recorded on every decision and in `summary.json` | Bedrock only | Open-source users without Bedrock access can still run the agent; one switch, same prompts, same parsing |
+| D-27 | `provider: bedrock` or `anthropic` in `config.yaml`. Both use the anthropic SDK's Messages request shape (Mantle client or first-party client); Bedrock was the default and the published results were to run on it (superseded by D-35: they run on the Claude API); the provider is recorded on every decision and in `summary.json` | Bedrock only | Open-source users without Bedrock access can still run the agent; one switch, same prompts, same parsing |
 | OWNER D-28 | The public repo uses neutral product framing: docs named `PRD.md` and `TECH_SPEC.md`, the demo described as a hosted replay, the write-up as a project page, the build harness credited to EvalKit | Longer descriptive file names | The repo is an open-source product; its docs describe the product |
 | D-29 | Gate 3 runs every proof test with pytest and requires PASSED, on top of the static check | Static `ast` check only | Module and class marks, `importorskip`, `__test__ = False` and collection rules are invisible to a static check (verifier pass 2) |
 | D-30 | `fraud load` downloads the Kaggle files FDB's `sparknov` key uses (`kartik2112/fraud-detection`) directly, pins both by sha256, keeps the original timestamps, cuts validation at the first day of the simulated 2020, and records each split's content hash in `splits.json` and in the committed `docs/data/splits.json`. Ids use a public HMAC key | Install the FDB package and use its processed frames | FDB pins old dependencies and shifts every timestamp by 20 months (cosmetic). The same files, pinned, give the same rows with fewer moving parts. The source is public, so a secret key would hide nothing; real data would use a key manager (DATA_CARD.md) |
@@ -48,6 +48,7 @@ Each decision below seeds `docs/decisions.md` as D-1 to D-29.
 | OWNER D-32 | The release README has screenshots, a step-by-step guide (replay, own keys, Bedrock), and links to every important artifact: dashboard, demo, PRD, Tech Spec, data card, decision log, project page and video | A short README | Owner ruling |
 | OWNER D-33 | Model calls run on Bedrock behind an AWS spend limit on the owner's project, about $10. Any single run estimated above $5 needs the owner's approval first, and `config.yaml` sets `max_cost_usd: 5`, so a run stops before it can exceed that. Cache replays, recorded replies and the 100-alert dev set come before any repeat run | No cap below the $25 approval line | Owner ruling: keep spend close to zero and in the owner's control. Prices from the Bedrock rate card: Haiku 5.5 $0.11/$0.55 and Sonnet 5.5 $2.20/$11 per million input/output tokens in-Region |
 | D-34 | Bedrock is called through the Mantle endpoint in the project's own Region, `bedrock-mantle.us-east-2`, with in-Region model ids (`anthropic.claude-haiku-5-5`, `anthropic.claude-sonnet-5-5`). There is no cross-Region inference profile | `us.` or `global.` inference profiles in us-east-1 | The owner's AWS project allows no cross-Region calls or resources outside its Region (quotas for cross-Region profiles are 0). In-Region costs 10% more than global, a few cents at this scale. `aws login` credentials need `botocore[crt]` |
+| D-35 | OWNER: the published results run on the Claude API (`provider: anthropic`, model ids `claude-haiku-5-5` and `claude-sonnet-5-5`) with the owner's API key, read from the git-ignored `.env` and never printed. Bedrock stays a supported provider with the same prompts and parsing (D-27, D-34); `prices.yaml` holds one price table per provider. On the Claude API, W0.2's proof is a free model listing for access, the `anthropic-ratelimit-*` response headers for limits, and one structured call and one cache pair per model | Wait for Bedrock access on the owner's AWS project | The AWS project could not get Claude enabled (free plan, use-case form refused), which blocked every node that calls a model. The request shape is the same on both providers, so the switch is one config line, and Claude API list prices are about 10% below Bedrock in-Region |
 
 ---
 
@@ -356,13 +357,13 @@ class RunSummary(BaseModel):
 
 ```python
 class StageConfig(BaseModel):
-    model: str                  # inference profile ID, verified in W0.2
+    model: str                  # model id for the provider, verified in W0.2
     effort: Literal["low", "medium", "high", "xhigh", "max"]
     max_output_tokens: int
 
 
 class RunConfig(BaseModel):
-    provider: Literal["bedrock", "anthropic"]   # D-27; published results use bedrock
+    provider: Literal["bedrock", "anthropic"]   # D-27; published results use anthropic (D-35)
     region: str
     stage1: StageConfig
     stage2: StageConfig
@@ -706,13 +707,13 @@ Each row becomes one line in `docs/graph/catalog.tsv` with status `not-started`.
 
 | Cap | Capability | Trace |
 | --- | --- | --- |
-| PRE-01 | Bedrock model access granted for Haiku 5.5 and Sonnet 5.5 inference profiles in the chosen region | PRD risk 1 |
-| PRE-02 | Quota check: requests and tokens per minute for both profiles recorded; concurrency set from them | H9 |
-| PRE-03 | One structured-output call per model through the Mantle client; schema-valid reply; cache read seen on a repeat | D-2, D-3, H10 |
-| PRE-04 | `prices.yaml` filled from the Bedrock pricing page with the check date | H8 |
+| PRE-01 | Model access for Haiku 5.5 and Sonnet 5.5 on the configured provider: a model listing on the Claude API (D-35), authorisation in the project's Region on Bedrock | PRD risk 1, D-35 |
+| PRE-02 | Limits check: requests and tokens per minute for both models recorded (rate-limit headers on the Claude API, quotas on Bedrock); concurrency set within them | H9 |
+| PRE-03 | One structured-output call per model through the provider's client; schema-valid reply; cache read seen on a repeat | D-2, D-3, H10 |
+| PRE-04 | `prices.yaml` filled from each provider's rate card with the check date | H8 |
 | PRE-05 | Kaggle token present; FDB `sparknov` downloads | FR1 |
-| PRE-06 | EvalKit pinned to an exact version (v0.1.0 if released, else commit `06591f8`); its public symbols import | E10 |
-| PRE-07 | `fraud doctor` and `fraud doctor --offline` | E5 |
+| PRE-06 | EvalKit pinned to an exact version (the v0.2.0 commit); its public symbols import | E10 |
+| PRE-07 | `fraud doctor`, `--offline`, `--smoke` and `--record` | E5 |
 
 **N1.1 Schemas and config**
 

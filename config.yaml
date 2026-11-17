@@ -1,12 +1,12 @@
-# Run configuration (Tech Spec §3). Model ids are verified against Bedrock in W0.2.
-provider: bedrock           # D-27: bedrock or anthropic (first-party API)
-region: us-east-2           # D-34: the project's own Region, in-Region endpoint
+# Run configuration (Tech Spec §3). Model ids are verified by `fraud doctor` (W0.2).
+provider: anthropic         # D-35: the Claude API; bedrock is the other choice (D-27)
+region: us-east-2           # D-34: used when provider is bedrock (in-Region endpoint)
 stage1:
-  model: anthropic.claude-haiku-5-5   # D-34: in-Region model id (Mantle endpoint)
+  model: claude-haiku-5-5             # D-35; on Bedrock: anthropic.claude-haiku-5-5
   effort: medium                      # D-16
   max_output_tokens: 4096
 stage2:
-  model: anthropic.claude-sonnet-5-5  # D-34: in-Region model id (Mantle endpoint)
+  model: claude-sonnet-5-5            # D-35; on Bedrock: anthropic.claude-sonnet-5-5
   effort: high                        # D-16
   max_output_tokens: 8192
 clear_ceiling: 0.9          # router rule 5: no auto-clear at or above this risk score

@@ -1,0 +1,100 @@
+{
+  "config_concurrency": 8,
+  "max_concurrency": 64,
+  "models": {
+    "claude-haiku-5-5": {
+      "cache": {
+        "first": {
+          "cache_creation_input_tokens": 1437,
+          "cache_read_input_tokens": 0,
+          "input_tokens": 16,
+          "output_tokens": 4
+        },
+        "second": {
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 1437,
+          "input_tokens": 16,
+          "output_tokens": 4
+        },
+        "second_read_cache": true
+      },
+      "calls": [
+        {
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0,
+          "input_tokens": 234,
+          "output_tokens": 20
+        },
+        {
+          "cache_creation_input_tokens": 1437,
+          "cache_read_input_tokens": 0,
+          "input_tokens": 16,
+          "output_tokens": 4
+        },
+        {
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 1437,
+          "input_tokens": 16,
+          "output_tokens": 4
+        }
+      ],
+      "cost_usd": 0.000235,
+      "rate_limits": {
+        "input-tokens-limit": 5000000,
+        "output-tokens-limit": 1000000,
+        "requests-limit": 10000
+      },
+      "reply_ready": true,
+      "structured_reply_valid": true
+    },
+    "claude-sonnet-5-5": {
+      "cache": {
+        "first": {
+          "cache_creation_input_tokens": 1437,
+          "cache_read_input_tokens": 0,
+          "input_tokens": 16,
+          "output_tokens": 4
+        },
+        "second": {
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 1437,
+          "input_tokens": 16,
+          "output_tokens": 4
+        },
+        "second_read_cache": true
+      },
+      "calls": [
+        {
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0,
+          "input_tokens": 234,
+          "output_tokens": 20
+        },
+        {
+          "cache_creation_input_tokens": 1437,
+          "cache_read_input_tokens": 0,
+          "input_tokens": 16,
+          "output_tokens": 4
+        },
+        {
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 1437,
+          "input_tokens": 16,
+          "output_tokens": 4
+        }
+      ],
+      "cost_usd": 0.004548,
+      "rate_limits": {
+        "input-tokens-limit": 5000000,
+        "output-tokens-limit": 1000000,
+        "requests-limit": 10000
+      },
+      "reply_ready": true,
+      "structured_reply_valid": true
+    }
+  },
+  "provider": "anthropic",
+  "requests_per_minute_limit": 10000,
+  "seconds_per_call_assumed": 10,
+  "total_cost_usd": 0.004783
+}
