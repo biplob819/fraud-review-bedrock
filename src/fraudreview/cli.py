@@ -50,7 +50,62 @@ def build_parser() -> argparse.ArgumentParser:
         help="also write the live preflight proof (structured call, cache pair, rate limits) "
         "to this JSON file; Claude API provider only, about a cent",
     )
+    tri = sub.add_parser(
+        "triage", help="run both stages and the router; --dry-run prints calls and cost only"
+    )
+    tri.add_argument("--split", choices=("dev", "eval"), required=True)
+    tri.add_argument("--alerts", type=int, help="how many alerts (default: the whole sample)")
+    tri.add_argument("--dry-run", action="store_true", help="estimate only; no model calls")
+    tri.add_argument("--config", type=Path, default=Path("config.yaml"))
+    tri.add_argument("--prices", type=Path, default=Path("prices.yaml"))
+    tri.add_argument("--cases", type=Path, default=Path("results/baseline"), help="alert samples")
     return ap
+
+
+def _triage(args: argparse.Namespace) -> int:
+    from fraudreview.config import ConfigError, load_config
+    from fraudreview.cost import dry_run_lines, estimate_run
+    from fraudreview.doctor import price_table
+
+    try:
+        config = load_config(args.config)
+    except ConfigError as exc:
+        print(f"fraud triage: {exc}", file=sys.stderr)
+        return 2
+    if not args.dry_run:
+        print("fraud triage: live runs arrive in A2.5; use --dry-run", file=sys.stderr)
+        return 2
+    n = args.alerts
+    if n is None:
+        cases = args.cases / f"cases_{args.split}.jsonl"
+        if not cases.is_file():
+            print(
+                f"fraud triage: no {cases}; run `fraud baseline` or pass --alerts", file=sys.stderr
+            )
+            return 2
+        n = sum(1 for line in cases.read_text(encoding="utf-8").splitlines() if line.strip())
+    if n < 1:
+        print("fraud triage: --alerts must be at least 1", file=sys.stderr)
+        return 2
+    prices = price_table(args.prices, config.provider)
+    missing = [m for m in (config.stage1.model, config.stage2.model) if m not in prices]
+    if missing:
+        print(
+            f"fraud triage: no {config.provider} prices for {', '.join(missing)}", file=sys.stderr
+        )
+        return 2
+    est = estimate_run(n, prices, config)
+    print(f"dry run: {args.split}, {n} alerts, provider {config.provider}")
+    for line in dry_run_lines(est, config):
+        print(line)
+    if est.total_usd > config.max_cost_usd:
+        print(
+            f"fraud triage: the estimate ${est.total_usd:.2f} is over max_cost_usd "
+            f"${config.max_cost_usd:g}; lower --alerts or raise the cap",
+            file=sys.stderr,
+        )
+        return 2
+    return 0
 
 
 def load_env_file(path: Path, environ: MutableMapping[str, str] | None = None) -> list[str]:
@@ -210,6 +265,8 @@ def main(argv: list[str] | None = None) -> int:
         return _baseline(args)
     if args.command == "doctor":
         return _doctor(args)
+    if args.command == "triage":
+        return _triage(args)
     parser.print_help()
     return 0
 

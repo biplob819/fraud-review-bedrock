@@ -1,0 +1,2 @@
+{"actual_usd": 0.004863, "at": "2026-11-17T06:23:40+00:00", "calls": 6, "estimate_usd": 0.01, "provider": "anthropic", "run_id": "w0.2-preflight", "split": "preflight"}
+{"actual_usd": 0.00939, "at": "2026-11-17T06:23:40+00:00", "calls": 2, "estimate_usd": 0.02, "provider": "anthropic", "run_id": "n1.3-schema-check", "split": "smoke"}

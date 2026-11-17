@@ -587,7 +587,7 @@ Status vocabulary: `not-started | spec | building | green`. Build status comes f
 | **W0.2** | Access pre-flight | W0.1 | `fraud doctor`; Bedrock access and quotas confirmed for both profiles; one structured-output smoke call per model; `prices.yaml` from Bedrock pricing; Kaggle token; EvalKit pinned | — |
 | **N1.1** | Schemas and config | W0.1 | `fraudreview.schemas` (§3), `RunConfig` loader, results format v1 fixtures | US5 |
 | **N1.2** | Data load, minimisation and splits | N1.1 | FDB loader, minimisation, prefix strip, time splits with hashes, `DATA_CARD.md` | US5 |
-| **N1.3** | Bedrock client, cost and cache | N1.1, W0.2 | Mantle client wrapper, structured output, retries, cache, cost estimate, spend cap, ledger | US1 |
+| **N1.3** | Model client, cost and cache | N1.1, W0.2 | Client wrapper for the Claude API or Bedrock (Mantle), structured output, retries, cache, cost estimate, spend cap, ledger | US1 |
 | **N1.4** | Policy as code | N1.1 | `policy.md` v1, YAML clause loader, predicate parser, `policy_version`, clause validator | US3, US4 |
 | **A2.1** | Features, baseline, alerts and SHAP | N1.2 | Point-in-time features, LightGBM, D-9 threshold, alerts, dev and eval samples, SHAP top 5 | US1, US2, US4 |
 | **A2.2** | Router, queue and audit log | N1.1, N1.4 | Router rules 1–6, dispositions, queues, hash-chained audit events, no-tools guard | US2, US5 |
@@ -616,7 +616,7 @@ graph LR
   W01[W0.1 Harness] --> W02[W0.2 Access pre-flight]
   W01 --> N11[N1.1 Schemas]
   N11 --> N12[N1.2 Data + splits]
-  N11 --> N13[N1.3 Bedrock client + cost]
+  N11 --> N13[N1.3 Model client + cost]
   W02 --> N13
   N11 --> N14[N1.4 Policy as code]
   N12 --> A21[A2.1 Baseline + alerts + SHAP]
@@ -744,11 +744,11 @@ Each row becomes one line in `docs/graph/catalog.tsv` with status `not-started`.
 | DAT-04 | Time-based train, validation and test splits, with content hashes recorded | D-8, H6 |
 | DAT-05 | `DATA_CARD.md`: source, simulation caveats, splits, fraud rates, what real data would change | NFR5 |
 
-**N1.3 Bedrock client, cost and cache**
+**N1.3 Model client, cost and cache**
 
 | Cap | Capability | Trace |
 | --- | --- | --- |
-| BRK-01 | Mantle client wrapper: `parse()` into a pydantic model, effort and adaptive thinking, no sampling parameters, no `tools` | D-2, D-3, D-4 |
+| BRK-01 | Client wrapper: structured output (`output_config.format`) validated into a pydantic model, effort and adaptive thinking, no sampling parameters, no `tools`, every send through the request guard | D-2, D-3, D-4, D-35 |
 | BRK-02 | Error taxonomy and retries per §2.4; config errors exit 2 and are never `transport` | E3, D-20 |
 | BRK-03 | Content-addressed cache with atomic first-writer-wins writes and `code_version` check | D-1, E2 |
 | BRK-04 | Per-call cost from `prices.yaml`, including cache reads and writes and thinking tokens | H8 |

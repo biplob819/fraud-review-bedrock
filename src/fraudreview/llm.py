@@ -1,0 +1,246 @@
+"""One way to call a model (N1.3, Tech Spec §2.4, D-2, D-3, D-4, D-16, D-20, D-27, D-35).
+
+`build_body` makes a schema-constrained request with adaptive thinking, the stage's effort, cached
+system blocks and no tools or sampling parameters. `call_model` passes the body through
+`router.guard_request` before every send, validates the reply with the pydantic output model, and
+applies the §2.4 retry rules. Errors come back as error kinds for the router to escalate; a
+failed call never becomes a clear. Provider and configuration errors raise `ProviderConfigError`
+(exit 2) and are never counted as `transport`.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import random
+import time
+from collections.abc import Awaitable, Callable, Sequence
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from typing import Any, Literal
+
+from pydantic import BaseModel, ValidationError
+
+from fraudreview.config import RunConfig, StageConfig
+from fraudreview.router import guard_request
+from fraudreview.schemas import Stage1Output, Stage2Output, Tokens, TriageDecision
+
+ErrorKind = Literal["schema", "refusal", "transport"]
+MAX_TRANSPORT_ATTEMPTS = 6  # §2.4
+MAX_SCHEMA_ATTEMPTS = 2  # one retry, same prompt (FR7)
+BACKOFF_BASE_S = 1.0
+BACKOFF_CAP_S = 30.0
+
+
+class ProviderConfigError(Exception):
+    """Authentication, permission, unknown model or a request the API refuses as malformed.
+    The CLI maps it to exit 2; it is never a `transport` error (EvalKit L-21)."""
+
+
+@dataclass
+class CallResult:
+    output: BaseModel | None
+    error: ErrorKind | None
+    attempts: int
+    tokens: Tokens
+    request_id: str | None
+    latency_ms: int
+    stop_reason: str | None = None
+    errors_seen: list[str] = field(default_factory=list)  # exception type names, oldest first
+
+
+def build_body(
+    stage: StageConfig,
+    system: Sequence[str],
+    user: str,
+    output_model: type[BaseModel],
+) -> dict[str, Any]:
+    """The request body. The last system block carries the cache breakpoint, so the role, rules
+    and policy text are one cached prefix (§4.2)."""
+    from anthropic import transform_schema
+
+    if not system:
+        raise ValueError("a request needs at least one system block")
+    blocks: list[dict[str, Any]] = [{"type": "text", "text": text} for text in system]
+    blocks[-1]["cache_control"] = {"type": "ephemeral"}
+    return {
+        "model": stage.model,
+        "max_tokens": stage.max_output_tokens,
+        "thinking": {"type": "adaptive"},
+        "output_config": {
+            "effort": stage.effort,
+            "format": {"type": "json_schema", "schema": transform_schema(output_model)},
+        },
+        "system": blocks,
+        "messages": [{"role": "user", "content": user}],
+    }
+
+
+def _usage(u: Any) -> Tokens:
+    def n(name: str) -> int:
+        v = getattr(u, name, 0)
+        return int(v) if isinstance(v, int) and v >= 0 else 0
+
+    return Tokens(
+        input=n("input_tokens"),
+        output=n("output_tokens"),
+        cache_read=n("cache_read_input_tokens"),
+        cache_write=n("cache_creation_input_tokens"),
+    )
+
+
+def _add(a: Tokens, b: Tokens) -> Tokens:
+    return Tokens(
+        input=a.input + b.input,
+        output=a.output + b.output,
+        cache_read=a.cache_read + b.cache_read,
+        cache_write=a.cache_write + b.cache_write,
+    )
+
+
+def _classify(exc: BaseException) -> Literal["transient", "config"] | None:
+    """Sort an SDK exception: retry it, stop the run (exit 2), or neither (re-raise)."""
+    import anthropic
+
+    if isinstance(exc, anthropic.APIConnectionError):  # includes timeouts
+        return "transient"
+    if isinstance(exc, anthropic.APIStatusError):
+        status = exc.status_code
+        if status in (408, 409, 429) or status >= 500:  # 529 is overload
+            return "transient"
+        if status in (400, 401, 403, 404, 413, 422):
+            return "config"
+    return None
+
+
+def backoff_s(attempt: int, rng: random.Random) -> float:
+    """Full jitter: uniform in [0, min(cap, base * 2**(attempt-1))]."""
+    return rng.uniform(0.0, min(BACKOFF_CAP_S, BACKOFF_BASE_S * 2 ** (attempt - 1)))
+
+
+def _reply_text(message: Any) -> str | None:
+    for block in getattr(message, "content", None) or []:
+        if getattr(block, "type", None) == "text":
+            return block.text
+    return None
+
+
+async def call_model(
+    client: Any,
+    body: dict[str, Any],
+    output_model: type[BaseModel],
+    *,
+    sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+    rng: random.Random | None = None,
+    clock: Callable[[], float] = time.monotonic,
+) -> CallResult:
+    """Send `body`, retrying per §2.4. Returns a result with an output or an error kind."""
+    rng = rng or random.Random()
+    tokens = Tokens(input=0, output=0)
+    started = clock()
+    attempts = transport_failures = schema_failures = 0
+    request_id: str | None = None
+    stop_reason: str | None = None
+    seen: list[str] = []
+
+    def done(output: BaseModel | None, error: ErrorKind | None) -> CallResult:
+        return CallResult(
+            output=output,
+            error=error,
+            attempts=attempts,
+            tokens=tokens,
+            request_id=request_id,
+            latency_ms=max(0, int((clock() - started) * 1000)),
+            stop_reason=stop_reason,
+            errors_seen=seen,
+        )
+
+    while True:
+        guard_request(body)  # B6: immediately before every send, retries included
+        attempts += 1
+        try:
+            message = await client.messages.create(**body)
+        except Exception as exc:
+            kind = _classify(exc)
+            seen.append(type(exc).__name__)
+            if kind == "config":
+                raise ProviderConfigError(
+                    f"the provider refused the request ({type(exc).__name__}); check the key, "
+                    "model id and config"
+                ) from None
+            if kind != "transient":
+                raise
+            transport_failures += 1
+            if transport_failures >= MAX_TRANSPORT_ATTEMPTS:
+                return done(None, "transport")
+            await sleep(backoff_s(transport_failures, rng))
+            continue
+        request_id = getattr(message, "_request_id", None) or getattr(message, "id", None)
+        tokens = _add(tokens, _usage(getattr(message, "usage", None)))
+        stop_reason = getattr(message, "stop_reason", None)
+        if stop_reason == "refusal":
+            return done(None, "refusal")
+        text = _reply_text(message)
+        try:
+            if stop_reason == "max_tokens" or text is None:
+                raise ValueError("incomplete reply")
+            output = output_model.model_validate_json(text)
+        except (ValidationError, ValueError):
+            seen.append("InvalidReply")
+            schema_failures += 1
+            if schema_failures >= MAX_SCHEMA_ATTEMPTS:
+                return done(None, "schema")
+            continue
+        return done(output, None)
+
+
+def make_client(config: RunConfig) -> Any:
+    """The async client for the configured provider, with SDK retries off (§2.4 is the policy).
+    The Claude API key comes from ANTHROPIC_API_KEY; Bedrock uses the AWS profile."""
+    if config.provider == "anthropic":
+        import anthropic
+
+        return anthropic.AsyncAnthropic(max_retries=0)
+    from anthropic.lib.bedrock._mantle import AsyncAnthropicBedrockMantle
+
+    return AsyncAnthropicBedrockMantle(aws_region=config.region, max_retries=0)
+
+
+def to_decision(
+    result: CallResult,
+    *,
+    decision_id: str,
+    alert_id: str,
+    stage: int,
+    config: RunConfig,
+    prompt_hash: str,
+    policy_version: str,
+    input_hash: str,
+    cost_usd: float,
+    cache_hit: bool = False,
+    at: datetime | None = None,
+) -> TriageDecision:
+    """The decision record for one stage call; the provider is recorded on every decision."""
+    stage_cfg = config.stage1 if stage == 1 else config.stage2
+    expected = Stage1Output if stage == 1 else Stage2Output
+    if result.output is not None and type(result.output) is not expected:
+        raise ValueError(f"stage {stage} output must be {expected.__name__}")
+    return TriageDecision(
+        decision_id=decision_id,
+        alert_id=alert_id,
+        stage=stage,
+        provider=config.provider,
+        model=stage_cfg.model,
+        effort=stage_cfg.effort,
+        prompt_hash=prompt_hash,
+        policy_version=policy_version,
+        input_hash=input_hash,
+        output=result.output,  # type: ignore[arg-type]
+        error=result.error,
+        attempts=min(result.attempts, 10),
+        tokens=result.tokens,
+        cost_usd=cost_usd,
+        latency_ms=result.latency_ms,
+        request_id=result.request_id,
+        cache_hit=cache_hit,
+        at=at or datetime.now(UTC),
+    )

@@ -1,0 +1,38 @@
+{
+  "provider": "anthropic",
+  "stages": {
+    "stage1": {
+      "accepted_and_valid": true,
+      "action": "pass",
+      "attempts": 1,
+      "cost_usd": 0.000595,
+      "effort": "medium",
+      "error": null,
+      "model": "claude-haiku-5-5",
+      "schema": "Stage1Output",
+      "tokens": {
+        "cache_read": 0,
+        "cache_write": 2159,
+        "input": 135,
+        "output": 623
+      }
+    },
+    "stage2": {
+      "accepted_and_valid": true,
+      "action": "hold",
+      "attempts": 1,
+      "cost_usd": 0.008795,
+      "effort": "high",
+      "error": null,
+      "model": "claude-sonnet-5-5",
+      "schema": "Stage2Output",
+      "tokens": {
+        "cache_read": 0,
+        "cache_write": 2166,
+        "input": 135,
+        "output": 311
+      }
+    }
+  },
+  "total_cost_usd": 0.00939
+}

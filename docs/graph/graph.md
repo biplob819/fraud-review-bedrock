@@ -18,7 +18,7 @@ Generated from Tech Spec §11.2; edit here from now on and keep the Tech Spec in
 | --- | --- | --- | --- | --- | --- |
 | **N1.1** | Schemas and config | W0.1 | node_converge + verifier | `fraudreview.schemas` (§3), `RunConfig` loader, results format v1 fixtures | US5 |
 | **N1.2** | Data load, minimisation and splits | N1.1 | node_converge + verifier | FDB loader, minimisation, prefix strip, time splits with hashes, `DATA_CARD.md` | US5 |
-| **N1.3** | Bedrock client, cost and cache | N1.1, W0.2 | node_converge + verifier | Mantle client wrapper, structured output, retries, cache, cost estimate, spend cap, ledger | US1 |
+| **N1.3** | Model client, cost and cache | N1.1, W0.2 | node_converge + verifier | Client wrapper for the Claude API or Bedrock (Mantle), structured output, retries, cache, cost estimate, spend cap, ledger | US1 |
 | **N1.4** | Policy as code | N1.1 | node_converge + verifier | `policy.md` v1, YAML clause loader, predicate parser, `policy_version`, clause validator | US3, US4 |
 
 ## Wave 2 — baseline and agent
