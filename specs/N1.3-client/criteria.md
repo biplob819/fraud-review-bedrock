@@ -22,7 +22,7 @@
 
 **BRK-05 — estimate and spend cap**
 - `estimate_run` follows §9; `fraud triage --dry-run` prints call counts and the estimate, makes no call, and exits 2 when the estimate exceeds `max_cost_usd`.
-- Each call reserves `llm.worst_case_cost` (every schema attempt, the whole body as input at the dearer of the input and cache-write prices, a full `max_tokens` reply), which bounds any bill. `SpendCap.reserve` refuses a call when actual plus reserved plus its reservation would pass the cap; concurrent reservations cannot overshoot; `commit` stops the run if actual spend ever passes the cap. `CapReached` maps to exit 3 in `fraud`'s `main`.
+- Each call reserves `llm.worst_case_cost` (every schema attempt, the whole body as input at the dearer of the input and cache-write prices, a full `max_tokens` reply), which bounds any billed attempt (an attempt that fails in transport is assumed unbilled; `commit` stops the run if recorded spend ever passes the cap). `SpendCap.reserve` refuses a call when actual plus reserved plus its reservation would pass the cap; concurrent reservations cannot overshoot; `commit` stops the run if actual spend ever passes the cap. `CapReached` maps to exit 3 in `fraud`'s `main`.
 
 **BRK-06 — ledger**
 - Each real run appends one valid JSON line with run id, provider, split, calls, estimate and actual cost; earlier lines are untouched.

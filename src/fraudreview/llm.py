@@ -97,7 +97,8 @@ def _add(a: Tokens, b: Tokens) -> Tokens:
     )
 
 
-CREDENTIAL_WORDS = ("authentication", "credential", "api_key", "api key", "region")
+# the SDKs' own wording when no key or AWS credentials can be resolved at send time
+CREDENTIAL_PHRASES = ("could not resolve authentication", "could not resolve aws credentials")
 
 
 def _classify(exc: BaseException) -> Literal["transient", "config"] | None:
@@ -106,6 +107,8 @@ def _classify(exc: BaseException) -> Literal["transient", "config"] | None:
 
     if isinstance(exc, anthropic.APIConnectionError):  # includes timeouts
         return "transient"
+    if isinstance(exc, anthropic.APIResponseValidationError):  # an unparseable 200: retry
+        return "transient"
     if isinstance(exc, anthropic.APIStatusError):
         status = exc.status_code
         if status in (408, 409, 429) or status >= 500:  # 529 is overload
@@ -113,9 +116,16 @@ def _classify(exc: BaseException) -> Literal["transient", "config"] | None:
         return "config"  # every other 4xx: our request, key, model or account
     if isinstance(exc, anthropic.AnthropicError):  # client-side, e.g. no Region resolved
         return "config"
+    try:  # boto3 signing for Bedrock: missing profile, expired login or SSO token, no Region
+        from botocore.exceptions import BotoCoreError
+
+        if isinstance(exc, BotoCoreError):
+            return "config"
+    except ImportError:  # pragma: no cover - botocore ships with the bedrock extra
+        pass
     if isinstance(exc, (TypeError, RuntimeError)) and any(
-        w in str(exc).lower() for w in CREDENTIAL_WORDS
-    ):  # the SDKs raise these when no key or AWS credentials can be resolved
+        p in str(exc).lower() for p in CREDENTIAL_PHRASES
+    ):
         return "config"
     return None
 
@@ -171,8 +181,10 @@ async def call_model(
             kind = _classify(exc)
             seen.append(type(exc).__name__)
             if kind == "config":
+                status = getattr(exc, "status_code", None)
+                where = f"HTTP {status}, " if isinstance(status, int) else ""
                 raise ProviderConfigError(
-                    f"the provider refused the request ({type(exc).__name__}); check "
+                    f"the provider refused the request ({where}{type(exc).__name__}); check "
                     "ANTHROPIC_API_KEY (provider anthropic) or the AWS profile (provider "
                     "bedrock), the model id and config.yaml"
                 ) from None
@@ -227,10 +239,13 @@ def make_client(config: RunConfig) -> Any:
 def worst_case_cost(body: dict[str, Any], price: dict[str, float]) -> float:
     """The most one `call_model` can bill: every schema attempt with the whole body as input at
     the dearer of the input and cache-write prices (a token is at least one character), and a
-    full `max_tokens` reply. Reserving this keeps actual spend under the cap (BRK-05)."""
+    full `max_tokens` reply. Reserving this keeps billed spend under the cap (BRK-05). Assumption:
+    an attempt that fails in transport (timeout, dropped connection) is not billed; if one is,
+    its tokens are unknown to us, and `SpendCap.commit` still stops the run once recorded spend
+    passes the cap."""
     import json
 
-    chars = len(json.dumps(body, ensure_ascii=False))
+    chars = len(json.dumps(body))  # ASCII escapes: a rare character counts as 6, not 1
     per_attempt = (
         chars * max(price["input"], price["cache_write_5m"]) + body["max_tokens"] * price["output"]
     )

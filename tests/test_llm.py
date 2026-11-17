@@ -215,6 +215,23 @@ def test_config_errors_raise_exit_2_never_transport_and_show_no_secret():
             run(Script(missing))
 
 
+def test_aws_credential_errors_are_config_and_bugs_are_not_hidden():
+    from botocore.exceptions import NoCredentialsError, ProfileNotFound
+
+    for exc in (ProfileNotFound(profile="nonexistent"), NoCredentialsError()):
+        with pytest.raises(llm.ProviderConfigError):
+            run(Script(exc))
+    with pytest.raises(llm.ProviderConfigError, match="HTTP 400"):
+        run(Script(status_error(400)))
+    with pytest.raises(TypeError):  # an ordinary bug mentioning a region stays a bug
+        run(Script(TypeError("__init__() got an unexpected keyword argument 'aws_region'")))
+    bad_200 = anthropic.APIResponseValidationError(
+        response=httpx2.Response(200, request=REQ), body=None
+    )
+    recovered = run(Script(bad_200, reply()))
+    assert recovered.error is None and recovered.attempts == 2
+
+
 def test_missing_key_is_named_before_any_call(monkeypatch):
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     with pytest.raises(llm.ProviderConfigError, match="ANTHROPIC_API_KEY"):
@@ -349,7 +366,7 @@ def test_worst_case_reservation_bounds_any_bill_and_commit_stops_overspend():
     price = PRICES["claude-sonnet-5-5"]
     b = body(2)
     worst = llm.worst_case_cost(b, price)
-    chars = len(json.dumps(b, ensure_ascii=False))
+    chars = len(json.dumps(b))
     # the dearest possible call: two attempts, all input written to cache, full max_tokens
     bill = 2 * cost.call_cost(Tokens(input=0, output=8192, cache_write=chars), price)
     assert worst >= bill > 0
@@ -362,6 +379,11 @@ def test_worst_case_reservation_bounds_any_bill_and_commit_stops_overspend():
         assert cap.actual == pytest.approx(1.2)
         with pytest.raises(cost.CapReached):
             await cap.reserve(0.0001)
+        fresh = cost.SpendCap(1.0)
+        t2 = await fresh.reserve(0.1)
+        for bad in (float("nan"), -0.5):
+            with pytest.raises(ValueError):
+                await fresh.commit(t2, bad)
 
     asyncio.run(main())
 

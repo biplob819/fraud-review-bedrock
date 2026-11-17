@@ -5,7 +5,7 @@
       "accepted_and_valid": true,
       "action": "pass",
       "attempts": 1,
-      "cost_usd": 0.000595,
+      "cost_usd": 0.000621,
       "effort": "medium",
       "error": null,
       "model": "claude-haiku-5-5",
@@ -14,14 +14,14 @@
         "cache_read": 0,
         "cache_write": 2159,
         "input": 135,
-        "output": 623
+        "output": 675
       }
     },
     "stage2": {
       "accepted_and_valid": true,
       "action": "hold",
       "attempts": 1,
-      "cost_usd": 0.008795,
+      "cost_usd": 0.009135,
       "effort": "high",
       "error": null,
       "model": "claude-sonnet-5-5",
@@ -30,9 +30,9 @@
         "cache_read": 0,
         "cache_write": 2166,
         "input": 135,
-        "output": 311
+        "output": 345
       }
     }
   },
-  "total_cost_usd": 0.00939
+  "total_cost_usd": 0.009756
 }
