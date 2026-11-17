@@ -441,3 +441,25 @@ def test_freeze_guard_on_the_committed_log():
     assert mon.freeze_guard(evals, newest) is None
     if reason is not None:
         assert "eval3" in reason
+
+
+@pytest.mark.contract
+def test_freeze_guard_accepts_eval2_under_the_widened_freeze():
+    import json as _json
+
+    from fraudreview import run
+    from fraudreview.config import load_config
+    from fraudreview.policy import load_policy
+
+    root = Path(__file__).resolve().parent.parent
+    current = run.freeze_record(load_config(root / "config.yaml"), load_policy())
+    eval2 = _json.loads(
+        (root / "docs" / "measurements" / "eval2-freeze.json").read_text(encoding="utf-8")
+    )
+    runs = root / "docs" / "measurements" / "eval-runs.jsonl"
+    assert (
+        mon.freeze_guard(runs, current["digest"], current_record=current, run_record=eval2)
+        is None
+    )
+    moved = {**current, "seed": current["seed"] + 1}
+    assert "fresh 500" in mon.freeze_guard(runs, "x" * 16, current_record=moved, run_record=eval2)

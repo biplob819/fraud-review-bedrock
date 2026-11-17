@@ -428,16 +428,35 @@ def next_eval_sample(eval_runs: Sequence[Mapping[str, Any]]) -> str:
     return "eval" if not seen else f"eval{max(used) + 1}"
 
 
-def freeze_guard(eval_runs_path: Path | str, current_digest: str) -> str | None:
+def freeze_guard(
+    eval_runs_path: Path | str,
+    current_digest: str,
+    *,
+    current_record: dict[str, Any] | None = None,
+    run_record: dict[str, Any] | None = None,
+) -> str | None:
     """IMP-03: None when the newest eval run used the current frozen settings; otherwise the
     reason a fresh eval sample is needed before publishing, and which sample to use (Tech Spec §5
-    step 6, EvalKit CAL-05)."""
+    step 6, EvalKit CAL-05).
+
+    A freeze record can gain fields later (A2.5 added `logic_sources` after eval2). Given the
+    newest run's own freeze record and the current one, the guard compares the settings both
+    records hold, so a wider record alone never demands a fresh sample; any differing setting
+    still does."""
     rows = read_jsonl(eval_runs_path)
     if not rows:
         return f"no eval run is logged in {eval_runs_path}; run the frozen settings on eval"
     newest = rows[-1]
     if _same_digest(str(newest["digest"]), current_digest):
         return None
+    if current_record is not None and run_record is not None:
+        if not _same_digest(str(run_record.get("digest", "")), str(newest["digest"])):
+            return f"the freeze record given is not {newest['run_id']}'s"
+        shared = [k for k in run_record if k != "digest" and k in current_record]
+        if len(shared) == len(run_record) - 1 and all(
+            run_record[k] == current_record[k] for k in shared
+        ):
+            return None
     return (
         f"settings changed since {newest['run_id']} (digest {newest['digest']}, now "
         f"{current_digest}); draw a fresh 500 from the remaining test-period alerts and run "
