@@ -1,0 +1,36 @@
+{
+  "claims_extracted": 5551,
+  "claims_per_explanation": 12.12,
+  "cost_recorded_usd": {
+    "claude-opus-5-5": 28.5894,
+    "extract": 0.1982
+  },
+  "data_label": "simulated",
+  "explanations": 458,
+  "judges": {
+    "claude-opus-5-5": {
+      "claim_coverage": 0.7492,
+      "claims_judged": 4159,
+      "claims_supported": {
+        "hi": 0.4951,
+        "k": 1996,
+        "lo": 0.4648,
+        "n": 4159,
+        "point": 0.4799
+      },
+      "explanations_fully_judged": 342,
+      "explanations_fully_supported": {
+        "hi": 0.0111,
+        "k": 0,
+        "lo": 0.0,
+        "n": 342,
+        "point": 0.0
+      },
+      "mean_explanation_score": 0.4765,
+      "verdict_mix": {
+        "supported": 1996,
+        "unsupported": 2163
+      }
+    }
+  }
+}
