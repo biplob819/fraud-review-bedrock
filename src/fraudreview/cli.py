@@ -6,8 +6,9 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from collections.abc import MutableMapping
+from collections.abc import Callable, MutableMapping
 from pathlib import Path
+from typing import Any
 
 from fraudreview import __version__
 
@@ -54,7 +55,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def load_env_file(path: Path, environ: MutableMapping[str, str] | None = None) -> list[str]:
     """Read `KEY=value` lines from a git-ignored `.env` into the environment. A variable that is
-    already set wins; an empty value is skipped; an unquoted ` # comment` tail is dropped.
+    already set (and not empty) wins; an empty value is skipped; a ` # comment` tail is dropped.
     Returns the names set (values are never printed)."""
     import os
     import re
@@ -63,15 +64,14 @@ def load_env_file(path: Path, environ: MutableMapping[str, str] | None = None) -
     if not path.is_file():
         return []
     names = []
-    for line in path.read_text(encoding="utf-8").splitlines():
+    for line in path.read_text(encoding="utf-8-sig").splitlines():  # -sig drops a BOM
         m = re.fullmatch(r"\s*(?:export\s+)?([A-Z][A-Z0-9_]*)\s*=\s*(.*?)\s*", line)
-        if not m or m.group(1) in env:
+        if not m or env.get(m.group(1)):  # set and non-empty wins; empty counts as unset
             continue
-        value = m.group(2)
-        if len(value) >= 2 and value[0] == value[-1] and value[0] in "'\"":
-            value = value[1:-1]  # quoted: kept as written, '#' included
-        else:
-            value = re.sub(r"(^|\s+)#.*$", "", value)  # an unquoted inline comment
+        raw = m.group(2)
+        quoted = re.fullmatch(r"(['\"])(.*?)\1(?:\s+#.*)?", raw)
+        # quoted: kept as written, '#' included; unquoted: an inline comment is dropped
+        value = quoted.group(2) if quoted else re.sub(r"(^|\s+)#.*$", "", raw)
         if not value:
             continue  # an empty value counts as unset, so other credential sources still apply
         env[m.group(1)] = value
@@ -87,12 +87,18 @@ def _doctor(args: argparse.Namespace) -> int:
     for c in checks:
         print(f"{c.status.upper():<5} {c.name:<36} {c.detail}")
     code = exit_code(checks)
-    if args.record and code == 0 and not args.offline:
+    if args.record:
+        if args.offline:
+            print("--record needs the online checks; drop --offline", file=sys.stderr)
+            return 2
+        if code != 0:
+            print("not recording: a check failed", file=sys.stderr)
+            return code
         return _record(args)
     return code
 
 
-def _record(args: argparse.Namespace) -> int:
+def _record(args: argparse.Namespace, client_factory: Callable[[], Any] | None = None) -> int:
     from fraudreview.config import load_config
     from fraudreview.doctor import _anthropic_client, price_table, record_preflight
 
@@ -103,7 +109,10 @@ def _record(args: argparse.Namespace) -> int:
     system = (ROOT / "policy.md").read_text(encoding="utf-8")
     try:
         report = record_preflight(
-            _anthropic_client(), config, price_table(args.prices, "anthropic"), system
+            (client_factory or _anthropic_client)(),
+            config,
+            price_table(args.prices, "anthropic"),
+            system,
         )
     except Exception as exc:  # name the failure; show no secrets
         print(f"preflight failed: {type(exc).__name__}", file=sys.stderr)

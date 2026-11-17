@@ -266,6 +266,11 @@ def test_env_file_fills_only_unset_names_and_never_prints(tmp_path, capsys):
     env: dict[str, str] = {}
     assert load_env_file(tricky, env) == ["ANTHROPIC_API_KEY", "OPENAI_API_KEY"]
     assert env == {"ANTHROPIC_API_KEY": "sk-ant-x", "OPENAI_API_KEY": "a # b"}
+    odd = tmp_path / "odd.env"
+    odd.write_text('\ufeffANTHROPIC_API_KEY="sk-ant-q" # quoted then a comment\n', encoding="utf-8")
+    blank = {"ANTHROPIC_API_KEY": ""}  # exported but empty counts as unset
+    assert load_env_file(odd, blank) == ["ANTHROPIC_API_KEY"]
+    assert blank == {"ANTHROPIC_API_KEY": "sk-ant-q"}
 
 
 # ------------------------------------------------------------------ PRE-05 Kaggle
@@ -413,10 +418,46 @@ def test_record_preflight_proves_schema_cache_limits_and_cost():
     assert report["config_concurrency"] <= report["max_concurrency"]
     text = json.dumps(report)
     assert "sk-ant" not in text and "request-id" not in text
-    with pytest.raises(ValueError):
-        d.record_preflight(FakeRecorder(reply='{"ready": "yes"}'), config, prices, "x")
+    for bad in ('{"ready": "yes", "model_family": "C"}', '{"ready": true, "model_family": 5}'):
+        with pytest.raises(ValueError):
+            d.record_preflight(FakeRecorder(reply=bad), config, prices, "x")
     cold = d.record_preflight(FakeRecorder(cache=False), config, prices, "x")
     assert not cold["models"][API_HAIKU]["cache"]["second_read_cache"]
+
+
+def test_cli_record_writes_proof_and_refuses_quietly_bad_paths(tmp_path, capsys):
+    import argparse
+
+    from fraudreview import cli
+
+    out = tmp_path / "m" / "preflight.json"
+    args = argparse.Namespace(
+        config=ROOT / "config.yaml", prices=ROOT / "prices.yaml", record=out, offline=False
+    )
+    assert cli._record(args, client_factory=FakeRecorder) == 0
+    assert json.loads(out.read_text(encoding="utf-8"))["provider"] == "anthropic"
+
+    class Boom(FakeRecorder):
+        def create(self, **kw: Any) -> Any:
+            raise RuntimeError("sk-ant-supersecret")
+
+    assert cli._record(args, client_factory=Boom) == 1
+    err = capsys.readouterr().err
+    assert "RuntimeError" in err and "supersecret" not in err
+    args.config = bedrock_config(tmp_path)
+    assert cli._record(args, client_factory=FakeRecorder) == 1
+    code = cli.main(
+        ["doctor", "--offline", "--record", str(out), "--config", str(ROOT / "config.yaml")]
+    )
+    assert code == 2 and "--offline" in capsys.readouterr().err
+
+
+def test_client_build_failure_is_a_failed_check(tmp_path):
+    def broken() -> Any:
+        raise ValueError("bad base url")
+
+    checks = by_name(run_api(tmp_path, offline=False, anthropic=broken))
+    assert checks["anthropic client"].status == "fail"
 
 
 def test_max_concurrency_follows_requests_per_minute():

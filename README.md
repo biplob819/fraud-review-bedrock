@@ -1,6 +1,6 @@
 # fraud-review-bedrock
 
-A fraud-review agent on Amazon Bedrock that triages flagged card transactions, explains each decision against a written policy, and sends anything it is unsure about to a person. It has no tool that can block a card or contact a customer. All data is simulated (Sparkov, through Amazon's Fraud Dataset Benchmark).
+A fraud-review agent on Claude (through the Claude API or Amazon Bedrock) that triages flagged card transactions, explains each decision against a written policy, and sends anything it is unsure about to a person. It has no tool that can block a card or contact a customer. All data is simulated (Sparkov, through Amazon's Fraud Dataset Benchmark).
 
 **Status: under construction.** The build follows a dependency-gated node graph; run `python scripts/status.py` for live progress.
 

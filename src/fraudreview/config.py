@@ -27,13 +27,13 @@ class ConfigError(Exception):
 
 
 class StageConfig(Model):
-    model: Text  # Bedrock model or inference profile id, verified in W0.2
+    model: Text  # model id for the provider (Claude API or Bedrock), verified in W0.2
     effort: Effort
     max_output_tokens: Annotated[int, Field(ge=256, le=128_000)]
 
 
 class RunConfig(Model):
-    provider: Provider  # D-27: bedrock (default, published results) or anthropic
+    provider: Provider  # D-27: anthropic (published results, D-35) or bedrock
     region: Annotated[str, Field(pattern=r"^[a-z]{2}(-[a-z]+)+-[0-9]$")]
     stage1: StageConfig
     stage2: StageConfig

@@ -46,8 +46,9 @@ def check_config(path: Path) -> tuple[Check, RunConfig | None]:
         config = load_config(path)
     except ConfigError as exc:
         return Check("config", "fail", str(exc)), None
+    where = f" in {config.region}" if config.provider == "bedrock" else ""
     detail = (
-        f"{config.provider} in {config.region}; stage 1 {config.stage1.model}, stage 2 "
+        f"{config.provider}{where}; stage 1 {config.stage1.model}, stage 2 "
         f"{config.stage2.model}; max ${config.max_cost_usd:g} per run"
     )
     return Check("config", "ok", detail), config
@@ -126,7 +127,7 @@ def check_evalkit() -> Check:
     return Check("evalkit", "ok", f"{version}; faithfulness scorer imports")
 
 
-# ---------------------------------------------------------------- online (AWS)
+# ---------------------------------------------------------------- online (Bedrock and Claude API)
 
 
 def check_identity(sts: Any) -> Check:
@@ -254,7 +255,11 @@ def run_checks(
         checks.append(key)
         if key.status != "ok":
             return checks
-        client = (anthropic or _anthropic_client)()
+        try:
+            client = (anthropic or _anthropic_client)()
+        except Exception as exc:  # e.g. a bad base URL or proxy setting; no secret in the type
+            checks.append(Check("anthropic client", "fail", type(exc).__name__))
+            return checks
         checks.extend(check_model_listed(client, models))
         if smoke:
             prices = price_table(prices_path, "anthropic")
@@ -341,7 +346,12 @@ def structured_call(client: Any, model: str) -> tuple[dict[str, Any], dict[str, 
     m = raw.parse()
     text = next(b.text for b in m.content if b.type == "text")
     reply = json.loads(text)
-    if set(reply) != {"ready", "model_family"} or not isinstance(reply["ready"], bool):
+    if (
+        not isinstance(reply, dict)
+        or set(reply) != {"ready", "model_family"}
+        or not isinstance(reply["ready"], bool)
+        or not isinstance(reply["model_family"], str)
+    ):
         raise ValueError("reply does not match the schema")
     limits = {h: raw.headers.get(h) for h in LIMIT_HEADERS}
     return reply, _usage(m.usage), limits
