@@ -1,4 +1,5 @@
-"""W0.2: `fraud doctor` with injected AWS clients (no AWS in tests), prices, EvalKit pin."""
+"""W0.2: `fraud doctor` with injected AWS and Claude API clients (no network in tests), prices,
+the EvalKit pin and the `.env` loader."""
 
 from __future__ import annotations
 
@@ -126,6 +127,13 @@ def test_access_and_quotas_pass_only_when_authorised_with_quota(tmp_path):
     for model in (HAIKU, SONNET):
         assert good[f"access {model}"].status == "ok"
     assert good["quotas Claude Haiku 5.5"].status == "ok"
+
+    class NoQuotas(FakeAWS):
+        def get_paginator(self, name: str) -> Any:
+            return SimpleNamespace(paginate=lambda **_: iter([{"Quotas": []}]))
+
+    unlisted = by_name(run(tmp_path, offline=False, aws=NoQuotas()))
+    assert unlisted["quotas Claude Haiku 5.5"].status == "fail"
     bad = run(tmp_path, offline=False, aws=FakeAWS(authorised=False, quota=0))
     names = by_name(bad)
     assert names[f"access {HAIKU}"].status == "fail"
@@ -247,6 +255,17 @@ def test_env_file_fills_only_unset_names_and_never_prints(tmp_path, capsys):
     assert environ == {"KAGGLE_API_TOKEN": "already", "ANTHROPIC_API_KEY": "sk-ant-supersecret"}
     assert load_env_file(tmp_path / "missing", environ) == []
     assert "supersecret" not in capsys.readouterr().out
+    # the committed template, copied as is, sets nothing (empty values count as unset)
+    assert load_env_file(ROOT / ".env.example", {}) == []
+    tricky = tmp_path / "tricky.env"
+    tricky.write_text(
+        "ANTHROPIC_API_KEY = sk-ant-x   # my key\nKAGGLE_API_TOKEN=   # empty\n"
+        "OPENAI_API_KEY='a # b'\n",
+        encoding="utf-8",
+    )
+    env: dict[str, str] = {}
+    assert load_env_file(tricky, env) == ["ANTHROPIC_API_KEY", "OPENAI_API_KEY"]
+    assert env == {"ANTHROPIC_API_KEY": "sk-ant-x", "OPENAI_API_KEY": "a # b"}
 
 
 # ------------------------------------------------------------------ PRE-05 Kaggle
@@ -264,6 +283,10 @@ def test_kaggle_token_is_reported_but_never_shown():
         raise DataError("the Kaggle token holds spaces, line breaks or other characters")
 
     assert d.check_kaggle(broken).status == "fail"
+    from fraudreview.data import kaggle_auth
+
+    real = d.check_kaggle(lambda: kaggle_auth(env={"KAGGLE_API_TOKEN": "bad secret"}))
+    assert real.status == "fail" and "secret" not in real.detail
 
 
 # ------------------------------------------------------------------ PRE-06 EvalKit pin
@@ -289,17 +312,28 @@ def test_offline_makes_no_aws_call(tmp_path):
     aws = FakeAWS()
     checks = run(tmp_path, offline=True, aws=aws)
     assert aws.calls == []
-    assert by_name(checks)["aws"].status == "skip"
+    assert by_name(checks)["online"].status == "skip"
     assert d.exit_code(checks) == 0
+
+    def no_client() -> Any:
+        raise AssertionError("offline built a Claude API client")
+
+    api = run_api(tmp_path, offline=True, anthropic=no_client)
+    assert by_name(api)["online"].status == "skip" and d.exit_code(api) == 0
 
 
 @pytest.mark.safety
-def test_no_output_shows_the_account_or_a_secret(tmp_path):
+def test_no_output_shows_the_account_or_a_secret(tmp_path, capsys):
     for aws in (FakeAWS(), FakeAWS(fail="sts")):
         text = "\n".join(f"{c.name} {c.detail}" for c in run(tmp_path, offline=False, aws=aws))
         assert "586752323883" not in text and "KGAT_secret" not in text
         assert "secret-detail" not in text
     assert "****3883" in by_name(run(tmp_path, offline=False, aws=FakeAWS()))["aws identity"].detail
+    for client in (FakeMantle(), FakeMantle(fail=True)):
+        checks = run_api(tmp_path, offline=False, smoke=True, anthropic=lambda c=client: c)
+        text = "\n".join(f"{c.name} {c.detail}" for c in checks)
+        assert "supersecret" not in text and "KGAT_secret" not in text
+    test_env_file_fills_only_unset_names_and_never_prints(tmp_path, capsys)  # `.env` clause
 
 
 def test_exit_codes_and_regions(tmp_path):

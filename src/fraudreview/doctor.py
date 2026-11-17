@@ -169,7 +169,7 @@ def check_quotas(quotas: Any, display: str) -> Check:
     except Exception as exc:
         return Check(name, "fail", type(exc).__name__)
     if not found:
-        return Check(name, "warn", "no quota listed for this model")
+        return Check(name, "fail", "no quota listed for this model")
     usable = [(n, v) for n, v in found if v > 0]
     detail = "; ".join(f"{n}: {v:g}" for n, v in sorted(found))
     return Check(name, "ok" if usable else "fail", detail)
@@ -245,11 +245,11 @@ def run_checks(
     checks.append(check_kaggle(kaggle))
     checks.append(check_evalkit())
     if offline or config is None:
-        checks.append(Check("aws", "skip", "offline" if offline else "no valid config"))
+        checks.append(Check("online", "skip", "offline" if offline else "no valid config"))
         return checks
     models = (config.stage1.model, config.stage2.model)
     if config.provider == "anthropic":
-        checks.append(Check("aws", "skip", "provider is anthropic"))
+        checks.append(Check("aws", "skip", "provider is anthropic; no AWS call"))
         key = check_api_key(os.environ if env is None else env)
         checks.append(key)
         if key.status != "ok":

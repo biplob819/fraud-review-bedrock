@@ -54,7 +54,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 def load_env_file(path: Path, environ: MutableMapping[str, str] | None = None) -> list[str]:
     """Read `KEY=value` lines from a git-ignored `.env` into the environment. A variable that is
-    already set wins. Returns the names set (values are never printed)."""
+    already set wins; an empty value is skipped; an unquoted ` # comment` tail is dropped.
+    Returns the names set (values are never printed)."""
     import os
     import re
 
@@ -63,12 +64,16 @@ def load_env_file(path: Path, environ: MutableMapping[str, str] | None = None) -
         return []
     names = []
     for line in path.read_text(encoding="utf-8").splitlines():
-        m = re.fullmatch(r"\s*(?:export\s+)?([A-Z][A-Z0-9_]*)=(.*)", line)
+        m = re.fullmatch(r"\s*(?:export\s+)?([A-Z][A-Z0-9_]*)\s*=\s*(.*?)\s*", line)
         if not m or m.group(1) in env:
             continue
-        value = m.group(2).strip()
+        value = m.group(2)
         if len(value) >= 2 and value[0] == value[-1] and value[0] in "'\"":
-            value = value[1:-1]
+            value = value[1:-1]  # quoted: kept as written, '#' included
+        else:
+            value = re.sub(r"(^|\s+)#.*$", "", value)  # an unquoted inline comment
+        if not value:
+            continue  # an empty value counts as unset, so other credential sources still apply
         env[m.group(1)] = value
         names.append(m.group(1))
     return names
