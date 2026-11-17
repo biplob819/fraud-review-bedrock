@@ -171,6 +171,8 @@ def metric_value(line: Mapping[str, Any], metric: str) -> float | None:
     """A band metric's value in a history line (the point of a rate); None when absent."""
     value = line.get(metric)
     if isinstance(value, Mapping):
+        if value.get("n") == 0:  # a rate over nothing is no value, not 0 (no auto-clears at all)
+            return None
         value = value.get("point")
     return None if value is None else float(value)
 
@@ -337,6 +339,11 @@ def experiment_line(
         "verdict": verdict,
         "note": note,
     }
+
+
+def append_jsonl(path: Path | str, line: Mapping[str, Any]) -> None:
+    """Append one already-built line (an experiment line) in a single write."""
+    _append(path, line)
 
 
 def append_experiment(

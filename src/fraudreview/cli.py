@@ -71,6 +71,27 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         help="after a finished run, write it as the golden replay fixture (RUN-05)",
     )
+    mon = sub.add_parser(
+        "monitor", help="score a finished run, append it to the history and check the alarm bands"
+    )
+    mon.add_argument("--run", type=Path, required=True, help="a finished run folder")
+    mon.add_argument("--truth", type=Path, required=True, help="the labels JSONL for its split")
+    mon.add_argument("--cases", type=Path, help="the run's alert cases JSONL (for the drift check)")
+    mon.add_argument("--reference", type=Path, help="reference cases JSONL for the drift check")
+    mon.add_argument("--config", type=Path, default=Path("config.yaml"))
+    mon.add_argument("--no-append", action="store_true", help="check only; leave the history alone")
+    ex = sub.add_parser(
+        "experiment", help="log a dev-set change: two dev runs, the rule's verdict, a ledger line"
+    )
+    ex.add_argument("--before", type=Path, required=True, help="the dev run before the change")
+    ex.add_argument("--after", type=Path, required=True, help="the dev run after the change")
+    ex.add_argument("--truth", type=Path, required=True, help="dev labels JSONL")
+    ex.add_argument("--hypothesis", required=True)
+    ex.add_argument("--change", required=True)
+    ex.add_argument("--verdict", choices=("keep", "revert"), help="default: the rule's verdict")
+    ex.add_argument("--note")
+    ex.add_argument("--config", type=Path, default=Path("config.yaml"))
+    ex.add_argument("--dry-run", action="store_true", help="print the line; do not append it")
     fr = sub.add_parser("freeze", help="record the settings the eval run must match (C2)")
     fr.add_argument("--config", type=Path, default=Path("config.yaml"))
     dc = sub.add_parser(
@@ -357,6 +378,134 @@ def _triage_live(
     return 0
 
 
+def _monitor(args: argparse.Namespace) -> int:
+    from fraudreview import metrics, monitor
+    from fraudreview.config import ConfigError, load_config
+    from fraudreview.schemas import AlertCase, Disposition, TriageDecision
+
+    try:
+        config = load_config(args.config)
+        run = args.run
+        disp = [
+            Disposition.model_validate_json(x)
+            for x in (run / "dispositions.jsonl").read_text(encoding="utf-8").splitlines()
+            if x.strip()
+        ]
+        decs = [
+            TriageDecision.model_validate_json(x)
+            for x in (run / "decisions.jsonl").read_text(encoding="utf-8").splitlines()
+            if x.strip()
+        ]
+        facts = json.loads((run / "run.json").read_text(encoding="utf-8"))
+        truth = [
+            json.loads(x) for x in args.truth.read_text(encoding="utf-8").splitlines() if x.strip()
+        ]
+        labels = {r["alert_id"]: bool(r["label"]) for r in truth}
+        fields = metrics.compute(disp, decs, labels, minutes_per_alert=4.0, seed=config.seed)
+    except (ConfigError, OSError, ValueError, KeyError) as exc:
+        print(f"fraud monitor: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return 2
+    line = monitor.run_history_line(run.name, fields, facts)
+    line["source"] = "fraud monitor"
+    alarms = monitor.check_bands(line, config.alarms or ())
+    print(
+        f"{line['run_id']}: n={line['n']}, frauds={line['frauds']}, leakage "
+        f"{line['leakage']['k']}/{line['leakage']['n']}, auto-clear "
+        f"{line['auto_clear_rate']['k']}/{line['auto_clear_rate']['n']} (simulated data)"
+    )
+    for a in alarms:
+        print(f"  {a.level.upper():<5} {a.metric} = {a.value:g} ({a.band})")
+    if not alarms:
+        print("  no alarms")
+    if args.cases and args.reference:
+        read = lambda p: [  # noqa: E731
+            AlertCase.model_validate_json(x)
+            for x in p.read_text(encoding="utf-8").splitlines()
+            if x.strip()
+        ]
+        for name, (value, level) in monitor.drift(read(args.reference), read(args.cases)).items():
+            print(f"  drift {name}: PSI {value:.3f} ({level})")
+    if not args.no_append:
+        monitor.append_history(ROOT / "docs" / "measurements" / "runs.jsonl", line)
+    return 1 if any(a.level == "fail" for a in alarms) else 0
+
+
+def _experiment(args: argparse.Namespace) -> int:
+    from fraudreview import monitor, run
+    from fraudreview.config import ConfigError, load_config
+
+    try:
+        config = load_config(args.config)
+        before = run.dev_log_line(_finished(args.before), args.truth, config)
+        after = run.dev_log_line(_finished(args.after), args.truth, config)
+        facts_b = json.loads((args.before / "run.json").read_text(encoding="utf-8"))
+        facts_a = json.loads((args.after / "run.json").read_text(encoding="utf-8"))
+        from fraudreview import compare
+
+        labels = compare.load_labels(args.truth)
+        paired_result = compare.compare_runs(
+            [x.disposition for x in _finished(args.before).triaged],
+            [x.disposition for x in _finished(args.after).triaged],
+            labels,
+            ("before", "after"),
+        )
+        gain = paired_result.gap("auto_clear")
+        paired = {
+            "survives_holm": bool(gain.claimed and gain.diff > 0),
+            "auto_clear_diff": round(gain.diff, 4),
+            "auto_clear_holm_interval": [round(gain.holm_lo, 4), round(gain.holm_hi, 4)],
+            "leakage_verdict": compare.verdict(paired_result),
+        }
+        rule_verdict, reason = monitor.accept_change(before, after, paired=paired)
+        verdict = args.verdict or rule_verdict
+        line = monitor.experiment_line(
+            hypothesis=args.hypothesis,
+            change=args.change,
+            digest_before=facts_b["freeze"]["digest"],
+            digest_after=facts_a["freeze"]["digest"],
+            dev_before=before,
+            dev_after=after,
+            paired=paired,
+            verdict=verdict,
+            note=args.note,
+        )
+    except (ConfigError, OSError, ValueError, KeyError) as exc:
+        print(f"fraud experiment: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return 2
+    print(f"rule: {rule_verdict} ({reason}); recorded verdict: {verdict}")
+    if args.dry_run:
+        print(json.dumps(line, indent=2, sort_keys=True))
+        return 0
+    monitor.append_jsonl(ROOT / "docs" / "measurements" / "experiments.jsonl", line)
+    return 0
+
+
+def _finished(folder: Path) -> Any:
+    """A `RunResult`-like view of a finished run folder, for `run.dev_log_line`."""
+    from fraudreview import run
+    from fraudreview.schemas import Disposition, TriageDecision
+
+    facts = json.loads((folder / "run.json").read_text(encoding="utf-8"))
+    disp = [
+        Disposition.model_validate_json(x)
+        for x in (folder / "dispositions.jsonl").read_text(encoding="utf-8").splitlines()
+        if x.strip()
+    ]
+    decs = {
+        d.alert_id: [] for d in disp
+    }  # decisions are grouped per alert, as run.RunResult holds them
+    for x in (folder / "decisions.jsonl").read_text(encoding="utf-8").splitlines():
+        if x.strip():
+            d = TriageDecision.model_validate_json(x)
+            decs.setdefault(d.alert_id, []).append(d)
+    from fraudreview import stages
+
+    result = run.RunResult(run_id=folder.name, out_dir=folder, n_total=facts["n_total"])
+    result.triaged = [stages.Triaged(tuple(decs[d.alert_id]), d) for d in disp]
+    result.billed_usd = facts["billed_usd"]
+    return result
+
+
 def _freeze(args: argparse.Namespace) -> int:
     from fraudreview import run
     from fraudreview.config import ConfigError, load_config
@@ -552,6 +701,10 @@ def _dispatch(argv: list[str] | None) -> int:
         return _triage(args)
     if args.command == "freeze":
         return _freeze(args)
+    if args.command == "monitor":
+        return _monitor(args)
+    if args.command == "experiment":
+        return _experiment(args)
     if args.command == "demo-cache":
         return _demo_cache(args)
     if args.command == "judge":

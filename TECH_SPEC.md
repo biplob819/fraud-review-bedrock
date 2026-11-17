@@ -854,13 +854,12 @@ Each row becomes one line in `docs/graph/catalog.tsv` with status `not-started`.
 
 | Cap | Capability | Trace |
 | --- | --- | --- |
-| MON-01 | Run history: every `fraud evaluate` appends one line to `docs/measurements/runs.jsonl` (hashes, n, leakage bound, auto-clear rate, cost per 1,000, faithfulness, schema-error and refusal rates, p95 latency) | D-36 |
+| MON-01 | Run history: `fraud monitor` (and `fraud evaluate`, E2.3, which calls it) appends one line to `docs/measurements/runs.jsonl` (hashes, n, leakage bound, auto-clear rate, cost per 1,000, faithfulness, schema-error and refusal rates, p95 latency) | D-36 |
 | MON-02 | Alarm bands in `config.yaml`: leakage above 0 exits 1; schema-error rate, refusal rate, cost per 1,000 and p95 latency outside their bands raise warnings in the summary and report | D-36, E7 |
-| MON-03 | Drift check with EvalKit's PSI monitor (EVK-03): per agent-visible feature between the frozen eval alerts and a new batch; warn above 0.1, alarm above 0.25 | D-36, D-38 |
+| MON-03 | Drift check with a local population-stability index: per agent-visible numeric feature between the frozen eval alerts and a new batch, printed by `fraud monitor --reference`; warn above 0.1, alarm above 0.25 | D-36, D-38 |
 | MON-04 | Trend data for the dashboard, read from `runs.jsonl` | D-36 |
-| MON-05 | EvalKit monitoring once released (B5.7, v0.4.0): run history, alarm bands, PSI drift and a trend chart from EvalKit replace the local versions; until then E2.4 uses EvalKit's v0.3.0 run-vs-run compare | D-38 |
 | IMP-01 | Experiment ledger `docs/measurements/experiments.jsonl`: each dev-set change with hypothesis, change hash, metrics, paired result and keep-or-revert verdict, kept or not | D-36 |
-| IMP-02 | Improvement loop on the dev set only: worst cases by a fixed rule, one change at a time, kept only if leakage stays 0 and the paired gain survives Holm | D-36 |
+| IMP-02 | Improvement loop on the dev set only: `fraud experiment` takes two dev runs, applies the keep-or-revert rule (leakage stays 0 and auto-clear falls within tolerance, or a leak is fixed; any other gain must survive the paired bootstrap with Holm), and appends the ledger line, kept or not | D-36 |
 | IMP-03 | Freeze guard: a policy or prompt hash that differs from the eval run's forces a fresh 500 from the remaining test-period alerts before publishing (EvalKit CAL-05) | D-36 |
 
 **E2.5 EvalKit v0.3.0 capabilities**

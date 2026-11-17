@@ -463,3 +463,152 @@ def test_freeze_guard_accepts_eval2_under_the_widened_freeze():
     moved = {**current, "seed": current["seed"] + 1}
     reason = mon.freeze_guard(runs, "x" * 16, current_record=moved, run_record=eval2)
     assert reason is not None and "fresh 500" in reason
+
+
+# ------------------------------------------------------------------ the CLI commands
+
+
+def _two_runs(tmp_path: Path, leak: bool) -> tuple[Path, Path, Path]:
+    """Two finished run folders for the same alerts under different settings, with labels."""
+    from tests.test_run import CASES, Slow, context, go
+
+    ctx_a = context(tmp_path / "a", Slow())
+    go(CASES, ctx_a, tmp_path / "run-a")
+    ctx_b = context(tmp_path / "b", Slow())
+    ctx_b.config = ctx_b.config.model_copy(update={"seed": ctx_b.config.seed + 1})
+    go(CASES, ctx_b, tmp_path / "run-b")
+    rows = [
+        {"alert_id": c.alert_id, "label": leak and i == 0, "shap_top5": []}
+        for i, c in enumerate(CASES)
+    ]
+    truth = tmp_path / "truth.jsonl"
+    truth.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    return tmp_path / "run-a", tmp_path / "run-b", truth
+
+
+def test_fraud_monitor_scores_a_run_appends_history_and_exits_by_alarm(
+    tmp_path, monkeypatch, capsys
+):
+    from fraudreview import cli
+
+    run_a, _, truth = _two_runs(tmp_path, leak=False)
+    monkeypatch.setattr(cli, "ROOT", tmp_path)
+    (tmp_path / "docs" / "measurements").mkdir(parents=True)
+    cfg = str(Path(__file__).resolve().parent.parent / "config.yaml")
+    args = ["monitor", "--run", str(run_a), "--truth", str(truth), "--config", cfg]
+    assert cli.main(args) == 0
+    out = capsys.readouterr().out
+    assert "leakage 0/" in out and "simulated data" in out
+    history = (tmp_path / "docs" / "measurements" / "runs.jsonl").read_text(encoding="utf-8")
+    line = json.loads(history.splitlines()[-1])
+    assert line["source"] == "fraud monitor" and line["leakage"]["k"] == 0
+    assert cli.main([*args, "--no-append"]) == 0
+    assert (
+        len((tmp_path / "docs" / "measurements" / "runs.jsonl").read_text("utf-8").splitlines())
+        == 1
+    )
+
+
+@pytest.mark.safety
+def test_fraud_monitor_exits_1_when_a_fraud_was_auto_cleared(tmp_path, monkeypatch, capsys):
+    """A run that clears a fraud must fail the monitor, whatever the bands say."""
+    from fraudreview import cli
+    from tests.test_run import CASES, context, go
+    from tests.test_stage2 import out
+
+    class Clears:
+        """Every alert is a routine daytime clear: stage 1 clears them all."""
+
+        def __init__(self) -> None:
+            self.messages = self.with_raw_response = self
+
+        async def create(self, **_: Any) -> Any:
+            from tests.test_stages import Raw
+
+            return Raw(out("clear"))
+
+    safe = [
+        c.model_copy(
+            update={
+                "risk_score": 0.01,
+                "ts_hour": 14,
+                "features": c.features.model_copy(
+                    update={
+                        "hour": 14,
+                        "merchant_first_seen": False,
+                        "amt_vs_usual": 0.5,
+                        "category_freq": 0.4,
+                        "card_history_n": 500,
+                    }
+                ),
+                "amount": 10.0,
+            }
+        )
+        for c in CASES
+    ]
+    ctx = context(tmp_path / "c", Clears())
+    go(safe, ctx, tmp_path / "run-c")
+    rows = [{"alert_id": c.alert_id, "label": i == 0, "shap_top5": []} for i, c in enumerate(safe)]
+    truth = tmp_path / "t.jsonl"
+    truth.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    monkeypatch.setattr(cli, "ROOT", tmp_path)
+    (tmp_path / "docs" / "measurements").mkdir(parents=True)
+    cfg = str(Path(__file__).resolve().parent.parent / "config.yaml")
+    code = cli.main(
+        [
+            "monitor",
+            "--run",
+            str(tmp_path / "run-c"),
+            "--truth",
+            str(truth),
+            "--config",
+            cfg,
+            "--no-append",
+        ]
+    )
+    assert code == 1 and "FAIL" in capsys.readouterr().out
+
+
+def test_fraud_experiment_logs_both_runs_and_the_rules_verdict(tmp_path, monkeypatch, capsys):
+    from fraudreview import cli
+
+    run_a, run_b, truth = _two_runs(tmp_path, leak=False)
+    monkeypatch.setattr(cli, "ROOT", tmp_path)
+    (tmp_path / "docs" / "measurements").mkdir(parents=True)
+    cfg = str(Path(__file__).resolve().parent.parent / "config.yaml")
+    args = [
+        "experiment",
+        "--before",
+        str(run_a),
+        "--after",
+        str(run_b),
+        "--truth",
+        str(truth),
+        "--hypothesis",
+        "a different seed changes nothing",
+        "--change",
+        "seed + 1",
+        "--config",
+        cfg,
+    ]
+    assert cli.main([*args, "--dry-run"]) == 0
+    assert not (tmp_path / "docs" / "measurements" / "experiments.jsonl").exists()
+    assert cli.main(args) == 0
+    row = json.loads(
+        (tmp_path / "docs" / "measurements" / "experiments.jsonl")
+        .read_text("utf-8")
+        .splitlines()[-1]
+    )
+    assert row["verdict"] == row["rule"]["verdict"] and row["digest_before"] != row["digest_after"]
+    assert cli.main([*args, "--verdict", "revert"]) == 0  # an owner ruling can differ from the rule
+
+
+def test_a_rate_over_no_cases_raises_no_alarm():
+    """No auto-clears means precision has no value; it must not read as 0 and fail its band."""
+    line = {
+        "leakage": {"k": 0, "n": 0, "point": 0.0, "hi": 0.0},
+        "auto_clear_precision": {"k": 0, "n": 0, "point": 0.0, "lo": 0.0, "hi": 1.0},
+    }
+    assert mon.metric_value(line, "auto_clear_precision") is None
+    bands = [AlarmBand(metric="auto_clear_precision", warn_below=0.98, fail_below=0.95)]
+    assert mon.check_bands(line, bands) == []
