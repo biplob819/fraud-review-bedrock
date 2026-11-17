@@ -94,6 +94,10 @@ def _triage(args: argparse.Namespace) -> int:
             f"fraud triage: no {config.provider} prices for {', '.join(missing)}", file=sys.stderr
         )
         return 2
+    from fraudreview.llm import check_price
+
+    for m in (config.stage1.model, config.stage2.model):
+        check_price(prices[m])  # a bad price is a config error (exit 2), not "$nan"
     est = estimate_run(n, prices, config)
     print(f"dry run: {args.split}, {n} alerts, provider {config.provider}")
     for line in dry_run_lines(est, config):
