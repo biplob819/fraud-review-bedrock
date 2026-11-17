@@ -9,7 +9,7 @@ stage2:
   model: claude-sonnet-5-5            # D-35; on Bedrock: anthropic.claude-sonnet-5-5
   effort: high                        # D-16
   max_output_tokens: 8192
-clear_ceiling: 0.9          # router rule 5: no auto-clear at or above this risk score
+clear_ceiling: 0.045       # router rule 5 (OWNER D-39): no auto-clear at or above this risk score
 clear_min_confidence: 0.7   # router rule 6, stage 2 only
 concurrency: 8              # within the recorded limit (docs/measurements/preflight.json)
 seed: 20261115

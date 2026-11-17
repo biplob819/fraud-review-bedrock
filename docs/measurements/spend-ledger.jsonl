@@ -4,3 +4,10 @@
 {"actual_usd": 0.003842, "at": "2026-11-17T07:22:35+00:00", "calls": 10, "estimate_usd": 0.003842, "note": "the estimate equals the actual: reservations settle into actual spend", "provider": "anthropic", "run_id": "a2.3-stage1-sample", "split": "dev"}
 {"actual_usd": 0.004088, "at": "2026-11-17T07:30:56+00:00", "calls": 11, "estimate_usd": 0.0031, "provider": "anthropic", "run_id": "a2.3-stage1-sample", "split": "dev"}
 {"actual_usd": 0.058829, "at": "2026-11-17T07:39:48+00:00", "calls": 19, "estimate_usd": 0.1336, "note": "both stages billed (0 stage-1 cache hits); the estimate plans both stages", "provider": "anthropic", "run_id": "a2.4-stage2-sample", "split": "dev"}
+{"actual_usd": 0.555725, "at": "2026-11-17T08:00:31+00:00", "calls": 183, "estimate_usd": 1.336, "provider": "anthropic", "run_id": "dev-100-3fe2eff7", "split": "dev"}
+{"actual_usd": 0.010539, "at": "2026-11-17T08:01:51+00:00", "calls": 2, "estimate_usd": 1.336, "provider": "anthropic", "run_id": "dev-100-48bda41f", "split": "dev"}
+{"actual_usd": 0.0, "at": "2026-11-17T08:03:18+00:00", "calls": 0, "estimate_usd": 0.2672, "provider": "anthropic", "run_id": "dev-20-48bda41f", "split": "dev"}
+{"actual_usd": 2.551339, "at": "2026-11-17T08:11:43+00:00", "calls": 880, "estimate_usd": 6.68, "provider": "anthropic", "run_id": "eval-500-48bda41f", "split": "eval"}
+{"actual_usd": 0.646832, "at": "2026-11-17T08:20:51+00:00", "calls": 193, "estimate_usd": 0.552466, "provider": "anthropic", "run_id": "dev-100-7fec65d1", "split": "dev"}
+{"actual_usd": 0.0, "at": "2026-11-17T08:21:01+00:00", "calls": 0, "estimate_usd": 0.2672, "provider": "anthropic", "run_id": "dev-20-7fec65d1", "split": "dev"}
+{"actual_usd": 3.120654, "at": "2026-11-17T08:29:25+00:00", "calls": 974, "estimate_usd": 2.553308, "provider": "anthropic", "run_id": "eval2-500-7fec65d1", "split": "eval2"}

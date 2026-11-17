@@ -274,8 +274,12 @@ def run_baseline(
     rng = np.random.default_rng(seed)
     dev = sample(val_alerts, n_dev, rng, "validation")
     evaluation = sample(test_alerts, n_eval, rng, "test")
+    # a second, disjoint eval sample for a run after any change to the frozen settings (Tech
+    # Spec §5 step 6, EvalKit CAL-05); drawn last, so the first two samples are unchanged
+    rest = test_alerts.drop(index=evaluation.index)
+    evaluation2 = sample(rest, n_eval, rng, "remaining test")
     out_dir.mkdir(parents=True, exist_ok=True)
-    for name, rows in (("dev", dev), ("eval", evaluation)):
+    for name, rows in (("dev", dev), ("eval", evaluation), ("eval2", evaluation2)):
         contribs = shap_values(booster, rows)
         cases, truths, views = [], [], []
         records: list[dict[str, Any]] = rows.to_dict("records")  # pyright: ignore[reportAssignmentType]
@@ -317,6 +321,7 @@ def run_baseline(
             "test_all": _mix(test_alerts),
             "dev_sample": _mix(dev),
             "eval_sample": _mix(evaluation),
+            "eval2_sample": _mix(evaluation2),
         },
     }
     if not all(math.isfinite(v) for v in (th.value, th.recall, th.precision)):

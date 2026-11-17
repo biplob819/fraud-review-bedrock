@@ -89,7 +89,7 @@ def test_no_duplicates_and_no_coercion(tmp_path, mutate, field):
         lambda t: t.replace('op: "=="', 'op: ">="'),
         lambda t: t.replace("    value: 0", "    value: 1"),
         lambda t: t + '  - metric: leakage\n    op: "<="\n    value: 1\n',
-        lambda t: t.replace("clear_ceiling: 0.9", "clear_ceiling: 1.0"),
+        lambda t: t.replace("clear_ceiling: 0.045", "clear_ceiling: 1.0"),
         lambda t: t.replace("clear_min_confidence: 0.7", "clear_min_confidence: 0"),
         lambda t: t.replace("max_cost_usd: 5 ", "max_cost_usd: 1000000000000"),
     ],
@@ -113,7 +113,7 @@ def test_safety_settings_cannot_be_switched_off(tmp_path, mutate):
             lambda t: t.replace("clear_min_confidence: 0.7", "clear_min_confidence: 0.3"),
             "clear_min_confidence",
         ),
-        (lambda t: t.replace("clear_ceiling: 0.9", "clear_ceiling: 0.9999999"), "clear_ceiling"),
+        (lambda t: t.replace("clear_ceiling: 0.045", "clear_ceiling: 0.9999999"), "clear_ceiling"),
         (lambda t: t.replace("seed: 20261115", "seed: -1"), "seed"),
         (lambda t: t.replace("metric: leakage", "metric: Leakage"), "thresholds"),
     ],
@@ -162,4 +162,13 @@ def test_max_output_tokens_stays_within_the_non_streaming_limit(tmp_path):
         GOOD.replace("max_output_tokens: 8192", "max_output_tokens: 16001"), encoding="utf-8"
     )
     with pytest.raises(ConfigError, match="max_output_tokens"):
+        load_config(p)
+
+
+def test_clear_ceiling_floor_allows_stricter_but_not_zero(tmp_path):
+    p = tmp_path / "c.yaml"
+    p.write_text(GOOD.replace("clear_ceiling: 0.045", "clear_ceiling: 0.001"), encoding="utf-8")
+    assert load_config(p).clear_ceiling == 0.001
+    p.write_text(GOOD.replace("clear_ceiling: 0.045", "clear_ceiling: 0"), encoding="utf-8")
+    with pytest.raises(ConfigError, match="clear_ceiling"):
         load_config(p)

@@ -98,7 +98,7 @@ def test_each_route_gives_exactly_one_disposition(tmp_path, replies, final, queu
 
 @pytest.mark.safety
 def test_a_refused_stage2_clear_escalates_with_its_reasons(tmp_path):
-    riskier = RISKY.model_copy(update={"risk_score": 0.95})  # at or above the 0.9 ceiling
+    riskier = RISKY.model_copy(update={"risk_score": 0.95})  # well above the 0.045 ceiling
     t, _ = triage(tmp_path, riskier, out("clear"), out("clear", confidence=0.99))
     d = t.disposition
     assert d.final == "escalate" and d.queue == "standard"
@@ -208,3 +208,20 @@ def test_committed_stage2_sample_is_consistent():
     assert rec["latency_ms"]["stage2"]["p50"] <= rec["latency_ms"]["stage2"]["p95"]
     assert 0 < rec["stage2_cost_usd"] < 0.15
     assert '"a-' not in json.dumps(rec)
+
+
+@pytest.mark.safety
+def test_night_purchases_are_never_auto_cleared(tmp_path):
+    """OWNER D-40: P5.9 refuses any clear from 22:00 to 05:59, whatever the model says."""
+    for hour in (22, 23, 0, 3, 5):
+        night = ROUTINE.model_copy(
+            update={"ts_hour": hour, "features": ROUTINE.features.model_copy(update={"hour": hour})}
+        )
+        t, _ = triage(tmp_path / str(hour), night, out("clear"), out("clear", confidence=0.99))
+        assert t.disposition.final == "escalate"
+        assert "s2:no_clear:P5.9" in t.disposition.router_refusals
+    day = ROUTINE.model_copy(
+        update={"ts_hour": 14, "features": ROUTINE.features.model_copy(update={"hour": 14})}
+    )
+    t, _ = triage(tmp_path / "day", day, out("clear"))
+    assert t.disposition.final == "auto_cleared"

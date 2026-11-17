@@ -265,3 +265,51 @@ def test_golden_replay_reproduces_the_recorded_dispositions():
     assert expected["freeze"] == run.freeze_record(CONFIG, load_policy())  # same settings
     assert replay(golden) == expected["dispositions"]
     assert len(expected["dispositions"]) == 20
+
+
+# ------------------------------------------------------------------ §9 planning from a run
+
+
+def test_planning_tokens_come_from_a_finished_runs_live_calls():
+    from fraudreview.cost import assumptions_from, estimate_run
+    from fraudreview.schemas import Tokens
+
+    t1 = Tokens(input=100, output=300, cache_read=1500, cache_write=0)
+    t2 = Tokens(input=120, output=900, cache_read=1600, cache_write=0)
+    a = assumptions_from([t1, t1, t2], [1, 1, 2], n_alerts=2)
+    assert a.stage1_out == 300 and a.stage2_out == 900 and a.stage2_share == 0.5
+    assert a.cached_prefix == round((1500 * 2 + 1600) / 3)
+    est = estimate_run(10, PRICES, CONFIG, a)
+    assert est.stage2_calls == 5 and est.total_usd > 0
+    with pytest.raises(ValueError):
+        assumptions_from([], [], n_alerts=0)
+
+
+# ------------------------------------------------------------------ RUN-04 eval runs
+
+
+@pytest.mark.contract
+def test_committed_eval_runs_are_logged_honestly():
+    rows = [
+        json.loads(x)
+        for x in (ROOT / "docs" / "measurements" / "eval-runs.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if x
+    ]
+    assert [r["run_id"].split("-")[0] for r in rows] == ["eval", "eval2"]  # run 1 kept
+    for r in rows:
+        assert r["data_label"] == "simulated" and r["n"] == 500
+        assert r["leakage_bar_met"] == (r["leakage"]["k"] == 0)
+        assert r["leakage"]["n"] == r["frauds"] and r["auto_clear_rate"]["n"] == r["n"]
+        assert (
+            r["queue_mix"]["hold"] + r["queue_mix"]["escalate"] + r["auto_clear_rate"]["k"] == 500
+        )
+    assert rows[0]["leakage_bar_met"] is False and rows[1]["leakage_bar_met"] is True
+    assert (
+        rows[1]["digest"] == json.loads((ROOT / run.FREEZE).read_text(encoding="utf-8"))["digest"]
+    )
+    ledger = (ROOT / "docs" / "measurements" / "spend-ledger.jsonl").read_text(encoding="utf-8")
+    for r in rows:
+        line = [json.loads(x) for x in ledger.splitlines() if r["run_id"] in x][-1]
+        assert line["actual_usd"] == pytest.approx(r["billed_usd"], abs=1e-6)

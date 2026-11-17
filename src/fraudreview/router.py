@@ -37,8 +37,8 @@ class RouterSettings:
 
     def __post_init__(self) -> None:
         # the same bounds as RunConfig, so a hand-built setting cannot switch a rule off
-        if not 0.05 <= self.clear_ceiling <= 0.99:
-            raise ValueError("clear_ceiling must be within [0.05, 0.99]")
+        if not 0.001 <= self.clear_ceiling <= 0.99:
+            raise ValueError("clear_ceiling must be within [0.001, 0.99]")
         if not 0.5 <= self.clear_min_confidence <= 1.0:
             raise ValueError("clear_min_confidence must be within [0.5, 1.0]")
 

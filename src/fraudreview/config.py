@@ -39,7 +39,8 @@ class RunConfig(Model):
     stage1: StageConfig
     stage2: StageConfig
     # router rules 5 and 6 cannot be configured into no-ops
-    clear_ceiling: Annotated[float, Field(ge=0.05, le=0.99, allow_inf_nan=False)]
+    # a lower ceiling only clears less (OWNER D-39 sets 0.045); 0 would switch auto-clear off
+    clear_ceiling: Annotated[float, Field(ge=0.001, le=0.99, allow_inf_nan=False)]
     clear_min_confidence: Annotated[float, Field(ge=0.5, le=1.0, allow_inf_nan=False)]
     concurrency: Annotated[int, Field(ge=1, le=64)]
     seed: Annotated[int, Field(ge=0, le=2**32 - 1)]

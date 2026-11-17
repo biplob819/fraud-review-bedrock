@@ -74,6 +74,16 @@ fields: [card_history_n]
 when: card_history_n < 5
 ```
 
+## P5.9 Never auto-clear a purchase at night
+A purchase from 10 p.m. to 6 a.m. local time always goes to a person. In this simulated data most fraud happens at night (see the data card).
+
+```yaml
+id: P5.9
+kind: no_clear
+fields: [hour]
+when: hour >= 22 or hour < 6
+```
+
 ## P6.9 Never auto-clear with almost no history
 A card with fewer than three earlier transactions always goes to a person.
 

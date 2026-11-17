@@ -53,9 +53,14 @@ def build_parser() -> argparse.ArgumentParser:
     tri = sub.add_parser(
         "triage", help="run both stages and the router; --dry-run prints calls and cost only"
     )
-    tri.add_argument("--split", choices=("dev", "eval"), required=True)
+    tri.add_argument("--split", choices=("dev", "eval", "eval2"), required=True)
     tri.add_argument("--alerts", type=int, help="how many alerts (default: the whole sample)")
     tri.add_argument("--dry-run", action="store_true", help="estimate only; no model calls")
+    tri.add_argument(
+        "--plan-from",
+        type=Path,
+        help="a finished run folder whose live calls set the planning tokens (§9)",
+    )
     tri.add_argument("--config", type=Path, default=Path("config.yaml"))
     tri.add_argument("--prices", type=Path, default=Path("prices.yaml"))
     tri.add_argument("--cases", type=Path, default=Path("results/baseline"), help="alert samples")
@@ -108,7 +113,29 @@ def _triage(args: argparse.Namespace) -> int:
 
     for m in (config.stage1.model, config.stage2.model):
         check_price(prices[m])  # a bad price is a config error (exit 2), not "$nan"
-    est = estimate_run(n, prices, config)
+    assumptions = None
+    if args.plan_from:
+        from fraudreview.cost import assumptions_from
+        from fraudreview.schemas import Disposition, TriageDecision
+
+        folder = args.plan_from
+        decs = [
+            TriageDecision.model_validate_json(x)
+            for x in (folder / "decisions.jsonl").read_text(encoding="utf-8").splitlines()
+            if x.strip()
+        ]
+        n_run = sum(
+            1
+            for x in (folder / "dispositions.jsonl").read_text(encoding="utf-8").splitlines()
+            if x.strip() and Disposition.model_validate_json(x)
+        )
+        live = [d for d in decs if not d.cache_hit]
+        assumptions = assumptions_from(
+            [d.tokens for d in live], [d.stage for d in live], max(1, n_run)
+        )
+        if not live:
+            raise ValueError("the plan-from run has no live calls")
+    est = estimate_run(n, prices, config, assumptions)
     mode = "dry run" if args.dry_run else "plan"
     print(f"{mode}: {args.split}, {n} alerts, provider {config.provider}")
     for line in dry_run_lines(est, config):
@@ -139,7 +166,7 @@ def _triage_live(
 
     policy = load_policy()
     current = run.freeze_record(config, policy)
-    if args.split == "eval":
+    if args.split.startswith("eval"):
         problems = run.freeze_problems(ROOT / run.FREEZE, current)
         if problems:
             print("fraud triage: the eval run must match the freeze (C2):", file=sys.stderr)

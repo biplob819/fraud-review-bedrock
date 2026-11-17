@@ -40,7 +40,7 @@ ROUTINE = case(
     alert_id="a-aaaaaaaaaaaaaaa1",
     amount=12.5,
     ts_hour=14,
-    risk_score=0.2,
+    risk_score=0.02,  # below the 0.045 ceiling (OWNER D-39)
     features={
         "amt_vs_usual": 0.6,
         "hour": 14,

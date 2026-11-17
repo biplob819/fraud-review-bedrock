@@ -41,6 +41,32 @@ class Assumptions:
     stage2_share: float = 1.0  # s: plan as if every alert reaches stage 2
 
 
+def assumptions_from(
+    decisions: list[Tokens | None], stages_of: list[int], n_alerts: int
+) -> Assumptions:
+    """Planning tokens from a finished run's live calls (§9: replace planning figures with dev
+    averages). Each stage's mean input (fresh plus cache writes), cache reads and output, and
+    the share of alerts that reached stage 2."""
+
+    def mean(xs: list[int]) -> int:
+        return round(sum(xs) / len(xs)) if xs else 0
+
+    by: dict[int, list[Tokens]] = {1: [], 2: []}
+    for tok, stage in zip(decisions, stages_of, strict=True):
+        if tok is not None:
+            by[stage].append(tok)
+    if not by[1] or n_alerts < 1:
+        raise ValueError("a run with live stage-1 calls is needed to plan from")
+    every = by[1] + by[2]
+    return Assumptions(
+        cached_prefix=mean([t.cache_read for t in every]),
+        alert_fresh=mean([t.input + t.cache_write for t in every]),
+        stage1_out=mean([t.output for t in by[1]]),
+        stage2_out=mean([t.output for t in by[2]]) if by[2] else Assumptions().stage2_out,
+        stage2_share=min(1.0, len(by[2]) / n_alerts),
+    )
+
+
 @dataclass(frozen=True)
 class Estimate:
     n_alerts: int

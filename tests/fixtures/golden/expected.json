@@ -1,0 +1,272 @@
+{
+  "dispositions": [
+    {
+      "alert_id": "a-d473d0ed37755c34",
+      "decided_at_stage": 2,
+      "decision_ids": [
+        "a-d473d0ed37755c34-s1",
+        "a-d473d0ed37755c34-s2"
+      ],
+      "final": "escalate",
+      "kind": "disposition",
+      "queue": "standard",
+      "router_refusals": []
+    },
+    {
+      "alert_id": "a-f36b3dc87c1fc120",
+      "decided_at_stage": 1,
+      "decision_ids": [
+        "a-f36b3dc87c1fc120-s1"
+      ],
+      "final": "auto_cleared",
+      "kind": "disposition",
+      "queue": null,
+      "router_refusals": []
+    },
+    {
+      "alert_id": "a-3bd47ed9e380446a",
+      "decided_at_stage": 2,
+      "decision_ids": [
+        "a-3bd47ed9e380446a-s1",
+        "a-3bd47ed9e380446a-s2"
+      ],
+      "final": "hold",
+      "kind": "disposition",
+      "queue": "priority",
+      "router_refusals": []
+    },
+    {
+      "alert_id": "a-abc75cca4f21494d",
+      "decided_at_stage": 2,
+      "decision_ids": [
+        "a-abc75cca4f21494d-s1",
+        "a-abc75cca4f21494d-s2"
+      ],
+      "final": "escalate",
+      "kind": "disposition",
+      "queue": "standard",
+      "router_refusals": []
+    },
+    {
+      "alert_id": "a-01e8f5496302cb7e",
+      "decided_at_stage": 2,
+      "decision_ids": [
+        "a-01e8f5496302cb7e-s1",
+        "a-01e8f5496302cb7e-s2"
+      ],
+      "final": "escalate",
+      "kind": "disposition",
+      "queue": "standard",
+      "router_refusals": []
+    },
+    {
+      "alert_id": "a-25ddf5598a9150c2",
+      "decided_at_stage": 2,
+      "decision_ids": [
+        "a-25ddf5598a9150c2-s1",
+        "a-25ddf5598a9150c2-s2"
+      ],
+      "final": "escalate",
+      "kind": "disposition",
+      "queue": "standard",
+      "router_refusals": []
+    },
+    {
+      "alert_id": "a-435f89d5f829e9c0",
+      "decided_at_stage": 1,
+      "decision_ids": [
+        "a-435f89d5f829e9c0-s1"
+      ],
+      "final": "auto_cleared",
+      "kind": "disposition",
+      "queue": null,
+      "router_refusals": []
+    },
+    {
+      "alert_id": "a-bc5c5947610a3e31",
+      "decided_at_stage": 2,
+      "decision_ids": [
+        "a-bc5c5947610a3e31-s1",
+        "a-bc5c5947610a3e31-s2"
+      ],
+      "final": "escalate",
+      "kind": "disposition",
+      "queue": "standard",
+      "router_refusals": []
+    },
+    {
+      "alert_id": "a-42b2c3fe029c4e60",
+      "decided_at_stage": 2,
+      "decision_ids": [
+        "a-42b2c3fe029c4e60-s1",
+        "a-42b2c3fe029c4e60-s2"
+      ],
+      "final": "hold",
+      "kind": "disposition",
+      "queue": "priority",
+      "router_refusals": []
+    },
+    {
+      "alert_id": "a-f89e399da62c151b",
+      "decided_at_stage": 2,
+      "decision_ids": [
+        "a-f89e399da62c151b-s1",
+        "a-f89e399da62c151b-s2"
+      ],
+      "final": "escalate",
+      "kind": "disposition",
+      "queue": "standard",
+      "router_refusals": []
+    },
+    {
+      "alert_id": "a-db3cf210c80f4383",
+      "decided_at_stage": 2,
+      "decision_ids": [
+        "a-db3cf210c80f4383-s1",
+        "a-db3cf210c80f4383-s2"
+      ],
+      "final": "auto_cleared",
+      "kind": "disposition",
+      "queue": null,
+      "router_refusals": []
+    },
+    {
+      "alert_id": "a-affe3aafe29c237f",
+      "decided_at_stage": 2,
+      "decision_ids": [
+        "a-affe3aafe29c237f-s1",
+        "a-affe3aafe29c237f-s2"
+      ],
+      "final": "escalate",
+      "kind": "disposition",
+      "queue": "standard",
+      "router_refusals": []
+    },
+    {
+      "alert_id": "a-a00780a3c5fbb2a5",
+      "decided_at_stage": 2,
+      "decision_ids": [
+        "a-a00780a3c5fbb2a5-s1",
+        "a-a00780a3c5fbb2a5-s2"
+      ],
+      "final": "escalate",
+      "kind": "disposition",
+      "queue": "standard",
+      "router_refusals": []
+    },
+    {
+      "alert_id": "a-af134bd3b47ae6f3",
+      "decided_at_stage": 2,
+      "decision_ids": [
+        "a-af134bd3b47ae6f3-s1",
+        "a-af134bd3b47ae6f3-s2"
+      ],
+      "final": "escalate",
+      "kind": "disposition",
+      "queue": "standard",
+      "router_refusals": []
+    },
+    {
+      "alert_id": "a-1c687b94e88c05f5",
+      "decided_at_stage": 1,
+      "decision_ids": [
+        "a-1c687b94e88c05f5-s1"
+      ],
+      "final": "auto_cleared",
+      "kind": "disposition",
+      "queue": null,
+      "router_refusals": []
+    },
+    {
+      "alert_id": "a-d872adf539ed62fa",
+      "decided_at_stage": 2,
+      "decision_ids": [
+        "a-d872adf539ed62fa-s1",
+        "a-d872adf539ed62fa-s2"
+      ],
+      "final": "escalate",
+      "kind": "disposition",
+      "queue": "standard",
+      "router_refusals": []
+    },
+    {
+      "alert_id": "a-d741ded3a6a256e1",
+      "decided_at_stage": 2,
+      "decision_ids": [
+        "a-d741ded3a6a256e1-s1",
+        "a-d741ded3a6a256e1-s2"
+      ],
+      "final": "escalate",
+      "kind": "disposition",
+      "queue": "standard",
+      "router_refusals": []
+    },
+    {
+      "alert_id": "a-734ed7adbf4cbcc8",
+      "decided_at_stage": 2,
+      "decision_ids": [
+        "a-734ed7adbf4cbcc8-s1",
+        "a-734ed7adbf4cbcc8-s2"
+      ],
+      "final": "escalate",
+      "kind": "disposition",
+      "queue": "standard",
+      "router_refusals": []
+    },
+    {
+      "alert_id": "a-0cfc93ce75731c7b",
+      "decided_at_stage": 2,
+      "decision_ids": [
+        "a-0cfc93ce75731c7b-s1",
+        "a-0cfc93ce75731c7b-s2"
+      ],
+      "final": "escalate",
+      "kind": "disposition",
+      "queue": "standard",
+      "router_refusals": []
+    },
+    {
+      "alert_id": "a-a06d106ab8bac86a",
+      "decided_at_stage": 2,
+      "decision_ids": [
+        "a-a06d106ab8bac86a-s1",
+        "a-a06d106ab8bac86a-s2"
+      ],
+      "final": "hold",
+      "kind": "disposition",
+      "queue": "priority",
+      "router_refusals": []
+    }
+  ],
+  "freeze": {
+    "code_versions": {
+      "model_call": "7",
+      "prompts": "2",
+      "stages": "5"
+    },
+    "digest": "7fec65d1345a9219",
+    "efforts": {
+      "stage1": "medium",
+      "stage2": "high"
+    },
+    "max_output_tokens": {
+      "stage1": 4096,
+      "stage2": 8192
+    },
+    "models": {
+      "stage1": "claude-haiku-5-5",
+      "stage2": "claude-sonnet-5-5"
+    },
+    "policy_version": "e70e3b7418b98c3e",
+    "prompt_hashes": {
+      "stage1": "d51978c68f5c1237",
+      "stage2": "d4e22c2c5e075303"
+    },
+    "provider": "anthropic",
+    "router": {
+      "clear_ceiling": 0.045,
+      "clear_min_confidence": 0.7
+    },
+    "seed": 20261115
+  }
+}
