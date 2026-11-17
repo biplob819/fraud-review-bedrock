@@ -8,7 +8,7 @@
 - Progress lines show alerts done and spend so far.
 
 **RUN-02: dev log**
-- Each dev run appends one line with its settings digest and dev result to `dev-runs.jsonl`.
+- Each finished dev run appends one line with its settings digest and dev result to `dev-runs.jsonl` (a run stopped by the cap is not scored until its rerun finishes).
 
 **RUN-03: freeze**
 - `fraud freeze` records the settings with a digest. A change to the prompt, policy, model, effort, output limit, router setting, seed or code version changes the digest.

@@ -154,10 +154,11 @@ def _plan_problem(folder: Path, config: Any) -> Any:
     except (OSError, ValueError) as exc:
         return f"not a finished run ({type(exc).__name__})"
     current = run.freeze_record(config, load_policy())
-    if facts.get("freeze", {}).get("digest") != current["digest"]:
+    freeze = facts.get("freeze") if isinstance(facts, dict) else None
+    if not isinstance(freeze, dict) or freeze.get("digest") != current["digest"]:
         return "that run used other settings; plan from a run made under the current ones"
     live = [d for d in decs if not d.cache_hit]
-    n_alerts = facts.get("n_done", 0)
+    n_alerts = facts.get("n_done", 0) if isinstance(facts.get("n_done"), int) else 0
     if not any(d.stage == 1 for d in live) or n_alerts < 1:
         return "that run has no live stage-1 calls to plan from"
     return assumptions_from(

@@ -195,6 +195,16 @@ def test_freeze_digest_moves_with_every_setting_and_eval_refuses_a_change(tmp_pa
     ]
     for cfg in changes:
         assert run.freeze_record(cfg, POLICY)["digest"] != base["digest"]
+    real_hash = run.source_hash
+    import fraudreview.router as router_module
+
+    def edited(obj: Any) -> str:
+        return "0" * 64 if obj is router_module else real_hash(obj)
+
+    import unittest.mock
+
+    with unittest.mock.patch.object(run, "source_hash", edited):  # router code changed
+        assert run.freeze_record(CONFIG, POLICY)["digest"] != base["digest"]
     other_policy = type(POLICY)(
         clauses=POLICY.clauses, version="v-other", text=POLICY.text, _prompt=POLICY.prompt_text()
     )
@@ -317,6 +327,12 @@ def test_plan_from_refuses_other_settings_and_counts_cached_stage2(tmp_path):
     other = cx.config.model_copy(update={"seed": cx.config.seed + 1})
     assert "other settings" in cli._plan_problem(tmp_path / "r", other)
     assert "not a finished run" in cli._plan_problem(tmp_path / "missing", cx.config)
+    odd = tmp_path / "odd"
+    odd.mkdir()
+    (odd / "decisions.jsonl").write_text("", encoding="utf-8")
+    for facts in ("[]", '{"freeze": null}'):
+        (odd / "run.json").write_text(facts, encoding="utf-8")
+        assert "other settings" in cli._plan_problem(odd, cx.config)
 
 
 @pytest.mark.contract
