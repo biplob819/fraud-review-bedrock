@@ -462,4 +462,5 @@ def test_freeze_guard_accepts_eval2_under_the_widened_freeze():
         is None
     )
     moved = {**current, "seed": current["seed"] + 1}
-    assert "fresh 500" in mon.freeze_guard(runs, "x" * 16, current_record=moved, run_record=eval2)
+    reason = mon.freeze_guard(runs, "x" * 16, current_record=moved, run_record=eval2)
+    assert reason is not None and "fresh 500" in reason
