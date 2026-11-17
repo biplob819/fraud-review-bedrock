@@ -72,6 +72,9 @@ extend-exclude = ["*.md", ".claude"]  # agent worktrees live under .claude/workt
 select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF"]
 ignore = ["RUF001", "RUF002", "RUF003"]  # allow the › separator used in proof cells
 
+[tool.ruff.lint.per-file-ignores]
+"src/fraudreview/report.py" = ["E501"]  # inline SVG and CSS strings
+
 [tool.pyright]
 include = ["src", "scripts", "tests", "demo"]
 pythonVersion = "3.12"

@@ -80,6 +80,41 @@ def build_parser() -> argparse.ArgumentParser:
     mon.add_argument("--reference", type=Path, help="reference cases JSONL for the drift check")
     mon.add_argument("--config", type=Path, default=Path("config.yaml"))
     mon.add_argument("--no-append", action="store_true", help="check only; leave the history alone")
+    ev = sub.add_parser(
+        "evaluate",
+        help="write summary.json for a finished run (offline), append the history, check the bars",
+    )
+    ev.add_argument("--run", type=Path, help="a finished run folder")
+    ev.add_argument("--cases", type=Path, help="the run's alert cases JSONL")
+    ev.add_argument("--truth", type=Path, help="the labels JSONL for its split")
+    ev.add_argument(
+        "--out", type=Path, help="where to write the summary (default: <run>/summary.json)"
+    )
+    ev.add_argument(
+        "--faithfulness-summary",
+        type=Path,
+        help="the judge cache summary (scripts/judge_cache_summary.py); carried through as partial",
+    )
+    ev.add_argument(
+        "--baseline",
+        type=Path,
+        help="baseline.json or its summary block (default: next to --cases, else committed copy)",
+    )
+    ev.add_argument("--reference", type=Path, help="reference cases JSONL for the drift check")
+    ev.add_argument("--config", type=Path, default=Path("config.yaml"))
+    ev.add_argument("--no-append", action="store_true", help="leave the run history alone")
+    ev.add_argument(
+        "--example",
+        action="store_true",
+        help="evaluate the committed golden run (tests/fixtures/golden); no files are required",
+    )
+    rp = sub.add_parser(
+        "report", help="render summary.json as one self-contained HTML dashboard (offline)"
+    )
+    rp.add_argument("--summary", type=Path, help="a summary.json written by `fraud evaluate`")
+    rp.add_argument("--history", type=Path, help="the run history JSONL (default: the repo's log)")
+    rp.add_argument("--out", type=Path, default=Path("report.html"), help="the HTML file to write")
+    rp.add_argument("--example", action="store_true", help="render from the committed golden run")
     ex = sub.add_parser(
         "experiment", help="log a dev-set change: two dev runs, the rule's verdict, a ledger line"
     )
@@ -430,6 +465,81 @@ def _monitor(args: argparse.Namespace) -> int:
     return 1 if any(a.level == "fail" for a in alarms) else 0
 
 
+def _evaluate(args: argparse.Namespace) -> int:
+    from fraudreview import metrics, monitor, summary
+    from fraudreview.config import ConfigError, load_config
+    from fraudreview.policy import PolicyError, load_policy
+
+    if not args.example and not (args.run and args.cases and args.truth):
+        print("fraud evaluate: give --run, --cases and --truth (or --example)", file=sys.stderr)
+        return 2
+    try:
+        config = load_config(args.config)
+        policy = load_policy()
+        if args.example:
+            inputs = summary.load_golden(ROOT / "tests" / "fixtures" / "golden")
+        else:
+            inputs = summary.load_run(args.run, args.cases, args.truth)
+        baseline_path = args.baseline
+        if baseline_path is None and args.cases is not None:
+            beside = args.cases.parent / "baseline.json"
+            baseline_path = beside if beside.is_file() else None
+        baseline = summary.read_baseline(baseline_path or ROOT / summary.BASELINE_SUMMARY)
+        reference = summary.read_cases(args.reference) if args.reference else ()
+        built = summary.build(
+            inputs,
+            config,
+            policy,
+            baseline,
+            faithfulness=args.faithfulness_summary,
+            reference=reference,
+        )
+    except (ConfigError, PolicyError, summary.SummaryError, OSError, ValueError, KeyError) as exc:
+        print(f"fraud evaluate: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return 2
+    s = built.summary
+    out = args.out or (args.run / "summary.json" if args.run else Path("summary.json"))
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(summary.to_json(s), encoding="utf-8")
+    print(
+        f"{s.run_id}: n={s.n_alerts}, frauds={s.n_frauds}, leakage {s.leakage.k}/{s.leakage.n} "
+        f"(upper bound {s.leakage.hi:.1%}), auto-clear {s.auto_clear_rate.k}/{s.auto_clear_rate.n} "
+        f"(simulated data) -> {out}"
+    )
+    for t in s.thresholds:
+        status = "n/a" if t.passed is None else ("pass" if t.passed else "FAIL")
+        print(f"  threshold {t.metric} {t.op} {t.value:g}: {status}")
+    for a in built.alarms:
+        print(f"  {a.level.upper():<5} {a.metric} = {a.value:g}")
+    if not args.no_append and not args.example:
+        added = summary.append_history_once(ROOT / monitor.RUNS, built)
+        print("  history line appended" if added else "  history already has this run")
+    return metrics.exit_code(s.thresholds)
+
+
+def _report(args: argparse.Namespace) -> int:
+    from fraudreview import monitor, report, summary
+
+    if not args.example and not args.summary:
+        print("fraud report: give --summary (or --example)", file=sys.stderr)
+        return 2
+    try:
+        if args.example:
+            html = report.render_example(ROOT)
+        else:
+            history_path = args.history or ROOT / monitor.RUNS
+            html = report.render(
+                summary.read_summary(args.summary), monitor.read_jsonl(history_path)
+            )
+    except (summary.SummaryError, report.ReportError, OSError, ValueError) as exc:
+        print(f"fraud report: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return 2
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    args.out.write_text(html, encoding="utf-8")
+    print(f"report -> {args.out} (one file, no external requests; simulated data)")
+    return 0
+
+
 def _experiment(args: argparse.Namespace) -> int:
     from fraudreview import monitor, run
     from fraudreview.config import ConfigError, load_config
@@ -703,6 +813,10 @@ def _dispatch(argv: list[str] | None) -> int:
         return _freeze(args)
     if args.command == "monitor":
         return _monitor(args)
+    if args.command == "evaluate":
+        return _evaluate(args)
+    if args.command == "report":
+        return _report(args)
     if args.command == "experiment":
         return _experiment(args)
     if args.command == "demo-cache":

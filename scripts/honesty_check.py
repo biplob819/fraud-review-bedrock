@@ -511,6 +511,55 @@ def _line_problems(text: str) -> list[tuple[int, str]]:
     return found
 
 
+GROUP_TAGS = frozenset({"section", "header", "footer"})
+
+
+class _HtmlGroups(HTMLParser):
+    """Visible text of an HTML page, grouped by its top-level <section>, <header> and <footer>
+    (text outside them is one more group). A generated page states the simulated label once per
+    panel, so for `.html` files the label is judged per group, not per source line."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.groups: list[tuple[int, list[str]]] = [(1, [])]
+        self._depth = 0
+        self._hidden = 0
+
+    def handle_starttag(self, tag, attrs):  # type: ignore[no-untyped-def]
+        self._hidden += tag in HIDDEN_TAGS
+        if tag in GROUP_TAGS:
+            if self._depth == 0:
+                self.groups.append((self.getpos()[0], []))
+            self._depth += 1
+
+    def handle_endtag(self, tag):  # type: ignore[no-untyped-def]
+        if tag in HIDDEN_TAGS and self._hidden:
+            self._hidden -= 1
+        if tag in GROUP_TAGS and self._depth:
+            self._depth -= 1
+            if self._depth == 0:
+                self.groups.append((self.getpos()[0], []))
+
+    def handle_data(self, data):  # type: ignore[no-untyped-def]
+        if not self._hidden and data.strip():
+            self.groups[-1][1].append(_norm(data.strip()))
+
+
+def _html_problems(text: str) -> list[tuple[int, str]]:
+    """Every metric in an HTML group needs a visible, un-negated "simulated" in that group.
+    Text nodes are joined by newlines, so a negator in one node never voids a label in another."""
+    parser = _HtmlGroups()
+    parser.feed(_clean_html(text))
+    parser.close()
+    found = []
+    for line, nodes in parser.groups:
+        joined = "\n".join(nodes)
+        metrics = [m.group(0).strip() for m in METRIC_RE.finditer(joined)]
+        if metrics and not _labelled([(joined, True)]):
+            found.extend((line, m) for m in metrics)
+    return found
+
+
 def check(files: list[Path], root: Path = ROOT) -> list[str]:
     problems: list[str] = []
     for path in files:
@@ -518,7 +567,9 @@ def check(files: list[Path], root: Path = ROOT) -> list[str]:
         if not path.is_file():
             problems.append(f"{rel}: listed but missing")
             continue
-        for lineno, metric in _line_problems(path.read_text(encoding="utf-8")):
+        body = path.read_text(encoding="utf-8")
+        found = _html_problems(body) if path.suffix == ".html" else _line_problems(body)
+        for lineno, metric in found:
             problems.append(f"{rel}:{lineno}: {metric} has no simulated label")
     return problems
 
@@ -970,6 +1021,17 @@ def self_test() -> int:
             page.write_text(text + "\n", encoding="utf-8")
             got = bool(check([page], root))
             expect(f"{'fails' if should_fail else 'passes'} on {name}", got == should_fail)
+        html_page = root / "p.html"
+        html_page.write_text(
+            "<section><h2>A</h2><p>on simulated data</p><b>97%</b></section>\n", encoding="utf-8"
+        )
+        expect("an html panel with its label passes", not check([html_page], root))
+        html_page.write_text("<section><h2>A</h2><b>97%</b></section>\n", encoding="utf-8")
+        expect("an html panel without the label fails", bool(check([html_page], root)))
+        html_page.write_text(
+            "<section><b>97%</b></section><section><p>simulated</p></section>\n", encoding="utf-8"
+        )
+        expect("a label in another panel does not count", bool(check([html_page], root)))
         page.write_text("Intro\r\nRecall 97%.\r\n", encoding="utf-8", newline="")
         expect(
             "CRLF line numbers match the editor",
