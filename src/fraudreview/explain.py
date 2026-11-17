@@ -135,14 +135,23 @@ US_STATES = (
     "washington",
 )
 _TERMS = {
-    "gender": r"genders?|male|female",
-    "age": r"ages?|aged|elderly",
+    "gender": r"genders?|males?|females?|sex|woman|women|man|men|boy|girl",
+    "age": (
+        # the card's or account's age is not the person's
+        r"(?<!card )(?<!card's )(?<!account )(?<!account's )ages?"
+        r"(?![\s-]+of[\s-]+(?:the[\s-]+)?(?:card|account))|aged|elderly|young|senior|teen(?:age)?"
+        r"(?:r)?"
+    ),
+    "demographic": (
+        r"race|racial|ethnic|ethnicity|religion|religious|nationality|marital|married|"
+        r"immigrant|country of origin"
+    ),
     "birth": r"birth|births|birthday|birthdate|born|dob|date of birth",
     "location": (
-        r"city|cities|state|states|zip|zipcode|zip code|postcode|address|addresses|street|"
-        r"local area|neighbou?rhood|"
-        # "near usual" is about the amount, not a place
-        r"near(?![\s-]+(?:the\s+)?(?:usual|norm|typical|threshold|limit|[0-9]))"
+        r"city|cities|(?<!account )(?<!card )states?(?![\s-]+of[\s-]+the[\s-]+art)|zip|zipcode|"
+        r"zip code|postcode|address|addresses|street|local area|neighbou?rhood|country|"
+        # near a place, not near a number or a norm
+        r"near(?:\s+(?:the\s+)?(?:cardholder|customer|home|work|office|billing|merchant|store)\b)"
     ),
     "us_state": "|".join(s.replace(" ", r"\s+") for s in US_STATES),
 }

@@ -7,6 +7,9 @@
   },
   "data_label": "simulated",
   "explanations": 458,
+  "explanations_extracted": 465,
+  "explanations_with_claims": 458,
+  "judge_mode": "single",
   "judges": {
     "claude-opus-5-5": {
       "claim_coverage": 0.7492,
@@ -32,5 +35,13 @@
         "unsupported": 2163
       }
     }
-  }
+  },
+  "notes": [
+    "Single judge only: the second judge (gpt-6.1-sol) produced no verdicts (OWNER D-43).",
+    "Partial: not every extracted claim was judged; coverage is per judge below.",
+    "The evidence sentences round numbers (0.02 for 0.0167), so exact figures read as unsupported.",
+    "Policy statements (for example that a clause forbids clearing) have no policy text among the evidence, so correct policy citations read as unsupported.",
+    "The judge is not calibrated against owner labels (EXP-09 moved out of v0.1.0)."
+  ],
+  "partial": true
 }

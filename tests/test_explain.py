@@ -121,7 +121,7 @@ def test_empty_run_gives_empty_rates():
         ("Average spend; usage is normal; stage 2 review", []),
         ("Amount near usual and a near-usual category", []),
         ("Spend nearly matches the statement", []),
-        ("The customer lives near the merchant", ["near"]),
+        ("The customer lives near the merchant", ["near the merchant"]),
         ("Cardholder age is 72", ["age"]),
         ("Cardholder was born in 1950", ["born"]),
         ("DOB on file; date of birth matches", ["dob", "date of birth"]),
@@ -262,3 +262,29 @@ def test_summarise_fills_its_fields_and_leaves_evalkit_ones():
     assert explain.summarise(decisions, cases, truths, POLICY) == s
     full = explain.to_summary(s, values_true=wilson(0, 0))
     assert isinstance(full, ExplanationSummary) and full.judge_mode == "none"
+
+
+@pytest.mark.safety
+@pytest.mark.parametrize(
+    "text, flagged",
+    [
+        ("females", True),
+        ("the cardholder is elderly", True),
+        ("a young customer", True),
+        ("religion", True),
+        ("nationality", True),
+        ("near the cardholder's home", True),
+        ("the customer's state", True),
+        ("state of the art", False),
+        ("age of the card", False),
+        ("the card's age", False),
+        ("account age", False),
+        ("near midnight", False),
+        ("near a high-risk category", False),
+        ("amount near usual", False),
+        ("local hour 22", False),
+        ("usage", False),
+    ],
+)
+def test_protected_scan_catches_attributes_and_leaves_card_and_amount_words(text, flagged):
+    assert bool(explain.protected_terms(text)) is flagged

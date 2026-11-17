@@ -52,7 +52,11 @@ def test_a_real_gap_is_claimed() -> None:
 def test_a_leakage_fall_is_claimed_and_better() -> None:
     r = compare(set(range(0, 12)), set(), frauds=set(range(0, 12)))
     assert r.gap("leakage").claimed and r.gap("leakage").diff < 0
-    assert c.verdict(r) == "better"
+    assert r.gap("auto_clear").claimed and r.gap("auto_clear").diff < 0
+    assert c.verdict(r) == "safer, less automation"  # it also gave up auto-clears
+    same_clears = compare(set(range(0, 12)), set(range(100, 112)), frauds=set(range(0, 12)), n=200)
+    assert same_clears.gap("leakage").claimed and not same_clears.gap("auto_clear").claimed
+    assert c.verdict(same_clears) == "better"
 
 
 def test_noise_is_not_claimed() -> None:

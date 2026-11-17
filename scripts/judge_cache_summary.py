@@ -23,9 +23,11 @@ def main(out: Path | None) -> dict[str, object]:
     claims_of: dict[str, list[str]] = {}  # item id -> claim ids
     verdicts: dict[str, dict[str, str]] = defaultdict(dict)  # judge -> claim id -> verdict
     cost = Counter()
+    extracted = 0
     for f in STORE.rglob("*.json"):
         d = json.loads(f.read_text(encoding="utf-8"))
         if "claims" in d:
+            extracted += 1
             for c in d["claims"]:
                 item = c["id"].rsplit(":explanation:", 1)[0]
                 claims_of.setdefault(item, []).append(c["id"])
@@ -38,10 +40,23 @@ def main(out: Path | None) -> dict[str, object]:
     n_items, n_claims = len(claims_of), len(all_claims)
     report: dict[str, object] = {
         "data_label": "simulated",
+        "explanations_with_claims": n_items,
+        "explanations_extracted": extracted,
         "explanations": n_items,
         "claims_extracted": n_claims,
         "claims_per_explanation": round(n_claims / n_items, 2) if n_items else 0,
         "cost_recorded_usd": {k: round(v, 4) for k, v in cost.items()},
+        "judge_mode": "single" if len(verdicts) == 1 else ("dual" if len(verdicts) > 1 else "none"),
+        "partial": True,
+        "notes": [
+            "Single judge only: the second judge (gpt-6.1-sol) produced no verdicts (OWNER D-43).",
+            "Partial: not every extracted claim was judged; coverage is per judge below.",
+            "The evidence sentences round numbers (0.02 for 0.0167), so exact figures read as "
+            "unsupported.",
+            "Policy statements (for example that a clause forbids clearing) have no policy text "
+            "among the evidence, so correct policy citations read as unsupported.",
+            "The judge is not calibrated against owner labels (EXP-09 moved out of v0.1.0).",
+        ],
         "judges": {},
     }
     for judge, vs in sorted(verdicts.items()):

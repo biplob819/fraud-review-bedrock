@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import random
 from collections.abc import Mapping
@@ -341,4 +342,35 @@ def test_committed_faithfulness_summary_is_an_honest_opus_only_partial():
         if x
     ]
     spent = sum(x["actual_usd"] for x in ledger if x["split"] == "faithfulness")
-    assert spent == pytest.approx(rec["cost_recorded_usd"]["claude-opus-5-5"], abs=0.5)
+    cached = sum(rec["cost_recorded_usd"].values())  # the judge plus the extractor
+    assert spent == pytest.approx(cached, abs=0.05)
+    assert rec["judge_mode"] == "single" and rec["partial"] is True
+    assert any("not calibrated" in n for n in rec["notes"])
+    assert any("round numbers" in n for n in rec["notes"])
+    assert any("policy text" in n for n in rec["notes"])
+    assert rec["explanations_extracted"] >= rec["explanations_with_claims"]
+
+
+@pytest.mark.safety
+def test_the_cap_is_a_total_across_reruns_of_the_same_run(tmp_path: Path) -> None:
+    """A rerun must not restart the cap (the overspend of OWNER D-43)."""
+    from evalkit.runtime.executor import BudgetExceeded
+
+    _, items = _items()
+    fake = Fake([i.explanation for i in items])
+    ledger = tmp_path / "ledger.jsonl"
+    est = judging.estimate(items)
+    kwargs = dict(
+        store_dir=tmp_path / "store", ledger_path=ledger, run_id="r", adapters=_adapters(fake)
+    )
+    with pytest.raises(BudgetExceeded):
+        judging.judge(items, cap_usd=est["total_usd"], **kwargs)  # type: ignore[arg-type]
+    first = judging.spent_for(ledger, "r")
+    assert first > 0
+    # the same cap again: what the ledger holds counts, so only the remainder can be spent
+    with contextlib.suppress(BudgetExceeded, judging.JudgingRefused):
+        judging.judge(items, cap_usd=est["total_usd"], **kwargs)  # type: ignore[arg-type]
+    assert judging.spent_for(ledger, "r") <= est["total_usd"] + 1e-9
+    # a cap already reached is refused before any call
+    with pytest.raises(judging.JudgingRefused, match="already spent"):
+        judging.judge(items, cap_usd=judging.spent_for(ledger, "r"), **kwargs)  # type: ignore[arg-type]

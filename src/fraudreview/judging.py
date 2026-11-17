@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import json
 import math
 import os
 from collections.abc import Iterable, Mapping, Sequence
@@ -240,6 +241,14 @@ def _check_keys(config: EvalKitConfig) -> None:
         )
 
 
+def spent_for(ledger: Path, run_id: str) -> float:
+    """Everything the ledger records for one run id (the judging runs write one line each)."""
+    if not ledger.exists():
+        return 0.0
+    rows = (json.loads(x) for x in ledger.read_text(encoding="utf-8").splitlines() if x.strip())
+    return sum(float(r["actual_usd"]) for r in rows if r.get("run_id") == run_id)
+
+
 async def judge_async(
     items: Sequence[FaithfulnessItem],
     *,
@@ -254,7 +263,17 @@ async def judge_async(
     """Run `faithfulness` live. `adapters` is for tests (fakes); live runs build EvalKit's."""
     config = config or eval_config()
     prices = prices if prices is not None else load_prices()
-    est = estimate(items, config, prices, cap_usd=cap_usd)  # refuses before anything is spent
+    ledger = ledger_path or Path(LEDGER)
+    # The cap is a TOTAL for this run id across every invocation (a rerun that restarted the cap
+    # caused OWNER D-43): what the ledger already holds for it counts against the cap.
+    spent_before = spent_for(ledger, run_id)
+    remaining = cap_usd - spent_before
+    if remaining <= 0:
+        raise JudgingRefused(
+            f"${spent_before:.2f} is already spent on {run_id}, which reaches the ${cap_usd:g} "
+            "cap; raise the cap only after the owner approves a new total"
+        )
+    est = estimate(items, config, prices, cap_usd=remaining)  # refuses before anything is spent
     if adapters is None:
         _check_keys(config)
         adapters = make_adapters(config, prices)
@@ -263,7 +282,7 @@ async def judge_async(
     executor = Executor(
         Store(store_dir),
         concurrency=dict(config.concurrency),
-        max_cost_usd=cap_usd,  # EvalKit's spend guard: a call that could pass the cap is refused
+        max_cost_usd=remaining,  # EvalKit's spend guard: a call that could pass the cap is refused
     )
     note: str | None = "the run raised before finishing"
     try:
@@ -279,7 +298,7 @@ async def judge_async(
         return results
     finally:  # one ledger line for whatever this run billed, even if it raised
         append_spend(
-            ledger_path or Path(LEDGER),
+            ledger,
             run_id=run_id,
             provider="anthropic+openai",
             split="faithfulness",

@@ -150,7 +150,11 @@ def _judge(args: argparse.Namespace) -> int:
         print(f"fraud judge: {exc}", file=sys.stderr)
         return 2
     except BudgetExceeded as exc:
-        print(f"fraud judge: stopped at the spend cap: {exc}; rerun to resume", file=sys.stderr)
+        print(
+            f"fraud judge: stopped at the spend cap: {exc}. The cap is a total for this run: "
+            "do not rerun without the owner approving a new total",
+            file=sys.stderr,
+        )
         return 3
     summ = judging.summary(results, loaded.decisions)
     body = {"summary": summ, "results": [r.model_dump(mode="json") for r in results]}

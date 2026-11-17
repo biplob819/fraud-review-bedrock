@@ -139,8 +139,8 @@ def verdict(result: Comparison) -> Verdict:
     leak, clear = result.gap("leakage"), result.gap("auto_clear")
     if leak.diff > 0:  # leakage rose: always worse, claimed or not
         return "worse"
-    if leak.claimed:  # leakage fell
-        return "better"
+    if leak.claimed:  # leakage fell by a claimed gap
+        return "safer, less automation" if clear.claimed and clear.diff < 0 else "better"
     if clear.claimed:
         if clear.diff < 0 and leak.diff < 0:  # fewer leaks (not a claimed gap), fewer auto-clears
             return "safer, less automation"
