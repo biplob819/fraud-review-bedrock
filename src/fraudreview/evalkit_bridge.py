@@ -1,4 +1,4 @@
-"""EvalKit v0.3 scorers on our records (E2.5).
+"""EvalKit scorers on our records (E2.5).
 
 - `ruleset` turns `policy.md` into an EvalKit `RuleSet` (clear -> allow, no_clear -> never,
   signal -> signal), typed by the alert fields.
@@ -6,8 +6,8 @@
 - `compliance` runs EvalKit `rule_compliance` on one decision; on a clear it agrees with router
   rules 2-4 (`Policy.clearing_allowed`), which `tests/test_evalkit_bridge.py` checks.
 - `evidence` renders the record as one plain sentence per glossary field, for `faithfulness`.
-- `PHRASES` and `values_true` check the numbers and common claims in each reason against the
-  record without a model.
+- `value_shares` checks the numbers and comparisons in each reason against the record with our own
+  strict `valuecheck` (EvalKit's `value_check` is not in the release this project pins).
 
 Nothing here calls a model.
 """
@@ -17,20 +17,12 @@ from __future__ import annotations
 from collections.abc import Iterable
 from typing import Any, Literal
 
-from evalkit.scorers import (
-    Rule,
-    RuleSet,
-    ScoreResult,
-    ValuePhrase,
-    render_evidence,
-    rule_compliance,
-    value_check,
-)
+from evalkit.scorers import Rule, RuleSet, ScoreResult, render_evidence, rule_compliance
 
+from fraudreview import valuecheck
 from fraudreview.policy import CATEGORIES, FIELD_TYPES, Policy
 from fraudreview.prompts import GLOSSARY, alert_payload
-from fraudreview.schemas import AlertCase, Rate, TriageDecision
-from fraudreview.stats import wilson
+from fraudreview.schemas import AlertCase, TriageDecision
 
 KIND: dict[str, Literal["allow", "never", "signal"]] = {
     "clear": "allow",
@@ -103,81 +95,11 @@ def evidence(case: AlertCase) -> list[str]:
     return render_evidence(record(case), list(EVIDENCE_TEMPLATE.values()))
 
 
-# A condition phrase is not read when a negation sits right before it or a "does not apply"
-# follows it in the same clause: EvalKit checks negated comparisons but not negated conditions.
-_NOT_BEFORE = r"(?<!\bnot )(?<!\bno )(?<!n't )(?<!\bnot at )(?<!\bnot a )(?<!\bnot an )"
-_NOT_AFTER = (
-    r"(?![^.;]{0,40}\b(?:does not|doesn't|do not|don't|is not|isn't|not apply|not met|"
-    r"not triggered)\b)"
-)
-
-
-def _guarded(core: str) -> str:
-    return rf"{_NOT_BEFORE}\b(?:{core}){_NOT_AFTER}"
-
-
-PHRASES: tuple[ValuePhrase, ...] = (
-    # "9 times usual", "9.1x the card's usual amount", "0.76 times its typical spend"
-    ValuePhrase(
-        pattern=r"\d[\d.,]*\s*(?:x|×|times)\s+(?:\S+\s+){0,3}?(?:usual|normal|typical|median)",
-        field="amt_vs_usual",
-    ),
-    ValuePhrase(  # P5.9's window
-        pattern=_guarded(
-            r"at night|night[- ]?time|overnight|late[- ]night|in the middle of the night"
-        ),
-        holds="hour >= 22 or hour < 6",
-    ),
-    ValuePhrase(
-        pattern=_guarded(
-            r"first (?:purchase|time|use|transaction|visit)[^.;]{0,30}merchant|new merchant|"
-            r"never (?:been )?(?:used|seen|shopped)[^.;]{0,25}merchant"
-        ),
-        holds="merchant_first_seen",
-    ),
-    ValuePhrase(  # P6.1's threshold
-        pattern=_guarded(
-            r"(?:rare|rarely used|rarely-used|seldom[- ]used|uncommon|unusual) (?:merchant )?"
-            r"category"
-        ),
-        holds="category_freq < 0.05",
-    ),
-    ValuePhrase(  # P6.2's threshold
-        pattern=_guarded(r"(?:thin|short|limited|sparse|little) (?:card |purchase )?history"),
-        holds="card_history_n < 5",
-    ),
-)
-
-
-def values_detail(
-    decisions: Iterable[TriageDecision],
-    cases: Iterable[AlertCase],
-    *,
-    phrases_only: bool = False,
-) -> tuple[Rate, int, list[str]]:
-    """(values_true rate, reasons seen, texts of failed checks). With `phrases_only`, only the
-    `PHRASES` checks count; EvalKit's checks of other numbers are left out (a diagnostic)."""
+def value_shares(decisions: Iterable[TriageDecision], cases: Iterable[AlertCase]) -> dict[str, Any]:
+    """`valuecheck.shares` over every reason of every decision with an output: counts of
+    verified, contradicted and unverifiable, with Wilson intervals of the first two."""
     by_id = {c.alert_id: c for c in cases}
-    k = n = total = 0
-    failed: list[str] = []
+    outcomes: list[valuecheck.Outcome] = []
     for d in decisions:
-        if d.output is None:
-            continue
-        rec = record(by_id[d.alert_id])
-        for reason in d.output.reasons:
-            total += 1
-            checks = value_check(reason, rec, phrases=PHRASES).details["checks"]
-            if phrases_only:
-                checks = [c for c in checks if c["kind"] != "number"]
-            if not checks:
-                continue
-            n += 1
-            k += all(c["ok"] for c in checks)
-            failed += [c["text"] for c in checks if not c["ok"]]
-    return wilson(k, n), total, failed
-
-
-def values_true(decisions: Iterable[TriageDecision], cases: Iterable[AlertCase]) -> Rate:
-    """The share of reasons whose value checks all pass, over the reasons holding at least one
-    checkable number or phrase (`Rate.n`). Error replies have no reasons."""
-    return values_detail(decisions, cases)[0]
+        outcomes += valuecheck.check_decision(d, by_id[d.alert_id])
+    return valuecheck.shares(outcomes)

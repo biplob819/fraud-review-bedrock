@@ -1,4 +1,4 @@
-"""E2.5: EvalKit v0.3 scorers on our records agree with the router and read our alerts."""
+"""E2.5: EvalKit scorers on our records agree with the router and read our alerts."""
 
 import random
 import tomllib
@@ -10,6 +10,7 @@ import pytest
 
 from fraudreview import evalkit_bridge as b
 from fraudreview import schemas as s
+from fraudreview import valuecheck
 from fraudreview.policy import CATEGORIES, load_policy
 from fraudreview.prompts import GLOSSARY, alert_payload
 from fraudreview.router import RouterSettings, check_clear
@@ -199,40 +200,7 @@ def test_render_evidence_gives_one_sentence_per_glossary_field():
 # ---------- value checks ----------
 
 
-def _check(reason: str, **over: Any) -> float:
-    from evalkit.scorers import value_check
-
-    c = case(random.Random(5), 6, **over)
-    return value_check(reason, b.record(c), phrases=b.PHRASES).value
-
-
-@pytest.mark.parametrize(
-    ("reason", "over", "ok"),
-    [
-        ("The amount is 2 times the card's usual spend", {"amt_vs_usual": 2.0}, True),
-        ("The amount is 9 times usual", {"amt_vs_usual": 2.0}, False),
-        ("Amount is 9.1x the card's typical amount", {"amt_vs_usual": 9.08}, True),
-        ("Purchase made at night", {"hour": 23}, True),
-        ("Purchase made at night", {"hour": 14}, False),
-        ("Not at night, so P5.9 does not apply", {"hour": 14}, True),
-        ("First purchase at this merchant", {"merchant_first_seen": True}, True),
-        ("First purchase at this merchant", {"merchant_first_seen": False}, False),
-        ("A rare category for this card", {"category_freq": 0.01}, True),
-        ("A rare category for this card", {"category_freq": 0.4}, False),
-        ("Thin history on this card", {"card_history_n": 2}, True),
-        ("Thin history on this card", {"card_history_n": 400}, False),
-        (
-            "Card has 400 earlier purchases, so thin history does not apply",
-            {"card_history_n": 400},
-            True,
-        ),
-    ],
-)
-def test_value_check_passes_true_claims_and_fails_false_ones(reason, over, ok):
-    assert (_check(reason, **over) == 1.0) is ok
-
-
-def test_values_true_counts_only_reasons_with_a_checkable_claim():
+def test_value_shares_counts_every_reason_and_agrees_with_valuecheck():
     c = case(random.Random(6), 7, amt_vs_usual=2.0)
     d = decision(c, "pass", ("P3.1",)).model_copy(
         update={
@@ -245,9 +213,10 @@ def test_values_true_counts_only_reasons_with_a_checkable_claim():
             )
         }
     )
-    rate, total, failed = b.values_detail([d], [c])
-    assert (rate.k, rate.n, total) == (1, 2, 3) and failed == ["9 times usual"]
-    assert b.values_true([d], [c]) == rate
+    out = b.value_shares([d, d.model_copy(update={"output": None})], [c])
+    assert (out["n"], out["verified"], out["contradicted"], out["unverifiable"]) == (3, 1, 1, 1)
+    assert out["verified_share"].k == 1 and out["contradicted_share"].n == 3
+    assert valuecheck.flat_record(c) == b.record(c)
 
 
 # ---------- contract ----------
@@ -263,10 +232,8 @@ def test_evalkit_is_pinned_to_the_v0_3_development_commit_and_its_api_imports():
         Rule,
         RuleError,
         RuleSet,
-        ValuePhrase,
         render_evidence,
         rule_compliance,
-        value_check,
     )
     from evalkit.scorers.faithfulness import (  # noqa: F401
         FaithfulnessItem,

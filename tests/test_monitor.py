@@ -458,8 +458,7 @@ def test_freeze_guard_accepts_eval2_under_the_widened_freeze():
     )
     runs = root / "docs" / "measurements" / "eval-runs.jsonl"
     assert (
-        mon.freeze_guard(runs, current["digest"], current_record=current, run_record=eval2)
-        is None
+        mon.freeze_guard(runs, current["digest"], current_record=current, run_record=eval2) is None
     )
     moved = {**current, "seed": current["seed"] + 1}
     reason = mon.freeze_guard(runs, "x" * 16, current_record=moved, run_record=eval2)
