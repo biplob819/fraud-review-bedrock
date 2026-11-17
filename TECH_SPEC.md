@@ -49,6 +49,7 @@ Each decision below seeds `docs/decisions.md` as D-1 to D-29.
 | OWNER D-33 | Model calls run on Bedrock behind an AWS spend limit on the owner's project, about $10. Any single run estimated above $5 needs the owner's approval first, and `config.yaml` sets `max_cost_usd: 5`, so a run stops before it can exceed that. Cache replays, recorded replies and the 100-alert dev set come before any repeat run | No cap below the $25 approval line | Owner ruling: keep spend close to zero and in the owner's control. Prices from the Bedrock rate card: Haiku 5.5 $0.11/$0.55 and Sonnet 5.5 $2.20/$11 per million input/output tokens in-Region |
 | D-34 | Bedrock is called through the Mantle endpoint in the project's own Region, `bedrock-mantle.us-east-2`, with in-Region model ids (`anthropic.claude-haiku-5-5`, `anthropic.claude-sonnet-5-5`). There is no cross-Region inference profile | `us.` or `global.` inference profiles in us-east-1 | The owner's AWS project allows no cross-Region calls or resources outside its Region (quotas for cross-Region profiles are 0). In-Region costs 10% more than global, a few cents at this scale. `aws login` credentials need `botocore[crt]` |
 | D-35 | OWNER: the published results run on the Claude API (`provider: anthropic`, model ids `claude-haiku-5-5` and `claude-sonnet-5-5`) with the owner's API key, read from the git-ignored `.env` and never printed. Bedrock stays a supported provider with the same prompts and parsing (D-27, D-34); `prices.yaml` holds one price table per provider. On the Claude API, W0.2's proof is a free model listing for access, the `anthropic-ratelimit-*` response headers for limits, and one structured call and one cache pair per model | Wait for Bedrock access on the owner's AWS project | The AWS project could not get Claude enabled (free plan, use-case form refused), which blocked every node that calls a model. The request shape is the same on both providers, so the switch is one config line, and Claude API list prices are about 10% below Bedrock in-Region |
+| D-36 | OWNER: the evaluation uses more of EvalKit than `faithfulness`: our checks registered as EvalKit scorers, two judges from different families (Claude and GPT), the `attack_outcome` prompt-injection probe, judge calibration on owner-labelled claims, and EvalKit's paired bootstrap with Holm correction for every variant comparison. A new node E2.4 adds monitoring (run history, alarm bands, a drift check, a trend panel) and a logged improvement loop on the dev set | Only `faithfulness` from EvalKit; tuning by eye without a ledger | The owner asked for EvalKit's capabilities, metrics, monitoring and improvement. Each change must be shown to help with honest statistics, and a deployment needs signals that say when it stops working |
 
 ---
 
@@ -456,6 +457,7 @@ Every command takes `--json`. Exit codes, as in EvalKit:
 1. **Freeze.** Policy, prompts, efforts and router settings are hashed after dev-set tuning. The eval run records the hashes.
 2. **Run.** `fraud triage --split eval --alerts 500`, then `fraud evaluate`.
 3. **Safety.** Leakage with its exact upper bound; end-to-end recall beside the baseline's test recall (D-10). Every leaked fraud is listed with its reasons for the decision log.
+   - **Monitoring and improvement (E2.4, OWNER D-36).** Each evaluation appends to the run history and is checked against alarm bands; new alert batches get a drift check; every dev-set change is logged in the experiment ledger and kept only on a paired gain that survives a Holm correction with leakage at 0.
 4. **Value.** Auto-clear rate and auto-clear precision with Wilson intervals; stage 1 versus stage 2 clear shares; queue mix.
 5. **Explanations.**
    - Schema, clause and field validity on every decision (B1, B2, B8).
@@ -577,7 +579,7 @@ fraud-review-bedrock/
 
 Status vocabulary: `not-started | spec | building | green`. Build status comes from `scripts/status.py`, which reads the graph and catalog live.
 
-### 11.2 Build graph: 22 nodes in five waves
+### 11.2 Build graph: 23 nodes in five waves
 
 | Node | Title | Depends on | Deliverable (what exists when it is green) | Stories |
 | --- | --- | --- | --- | --- |
@@ -593,8 +595,9 @@ Status vocabulary: `not-started | spec | building | green`. Build status comes f
 | **A2.4** | Stage 2 triage | A2.3 | Sonnet 5.5 stage, `Stage2Output`, retry-once-then-escalate, refusal handling | US1, US3 |
 | **A2.5** | Batch triage run | A2.4 | `fraud triage`, concurrency within quota, dev tuning runs, frozen eval run of 500, golden recording | US1, US2 |
 | **E2.1** | Metrics and intervals | A2.1, A2.2 | Leakage, recall versus baseline, auto-clear rate and precision, minutes, cost, latency, intervals, thresholds | US1, US2 |
-| **E2.2** | Explanation checks | A2.4, A2.1, N1.4 | Validity checks, value checks, protected scan, driver agreement, EvalKit faithfulness, mismatch picks | US4 |
-| **E2.3** | Summary and dashboard | E2.1, E2.2, A2.5 | `fraud evaluate`, `summary.json`, `fraud report`, deployed dashboard, honesty gate live | US1–US4 |
+| **E2.2** | Explanation checks | A2.4, A2.1, N1.4 | Validity checks, value checks, protected scan, driver agreement, EvalKit faithfulness with two judges, our checks as EvalKit scorers, prompt-injection probe, judge calibration, paired comparisons, mismatch picks | US4 |
+| **E2.4** | Monitoring and improvement | E2.1, E2.2, A2.5 | Run history, alarm bands, drift check, trend data, experiment ledger, dev-set improvement loop, freeze guard (OWNER D-36) | US1, US4 |
+| **E2.3** | Summary and dashboard | E2.1, E2.2, E2.4, A2.5 | `fraud evaluate`, `summary.json`, `fraud report`, deployed dashboard, honesty gate live | US1–US4 |
 | **B3.1** | ROI model | E2.3 | Spreadsheet with marked inputs, defaults from `summary.json`, leakage-loss term, formula test | US6 |
 | **B3.2** | PR/FAQ | E2.3, B3.1 | Two-page PDF: press release, customer FAQ, internal FAQ naming model risk review | US7 |
 | **B3.3** | Reference architecture | A2.5 | AWS diagram with built-versus-proposed legend, exported for the site | US9 |
@@ -629,6 +632,10 @@ graph LR
   A24 --> E22[E2.2 Explanation checks]
   A21 --> E22
   N14 --> E22
+  E21 --> E24[E2.4 Monitoring + improvement]
+  E22 --> E24
+  A25 --> E24
+  E24 --> E23
   E21 --> E23[E2.3 Summary + dashboard]
   E22 --> E23
   A25 --> E23
@@ -663,26 +670,27 @@ graph LR
 | 4 | A2.3, E2.1 |
 | 5 | A2.4 |
 | 6 | A2.5, E2.2 |
-| 7 | E2.3, B3.3 |
-| 8 | B3.1, D4.1 |
-| 9 | B3.2, B3.4, B3.5 |
-| 10 | D4.3 |
-| 11 | D4.2 |
+| 7 | E2.4, B3.3 |
+| 8 | E2.3 |
+| 9 | B3.1, D4.1 |
+| 10 | B3.2, B3.4, B3.5 |
+| 11 | D4.3 |
+| 12 | D4.2 |
 
-**Critical path (12 nodes):** W0.1 → N1.1 → N1.4 → A2.2 → A2.3 → A2.4 → A2.5 → E2.3 → B3.1 → B3.5 → D4.3 → D4.2. Three branches tie into A2.3 (through N1.4, N1.2 and W0.2), so a slip on any of them delays the Bedrock run.
+**Critical path (13 nodes):** W0.1 → N1.1 → N1.4 → A2.2 → A2.3 → A2.4 → A2.5 → E2.4 → E2.3 → B3.1 → B3.5 → D4.3 → D4.2. Three branches tie into A2.3 (through N1.4, N1.2 and W0.2), so a slip on any of them delays the Bedrock run.
 
 **Build order for a single builder** (OWNER D-17). Every node appears after all of its dependencies.
 
 | # | Node | # | Node | # | Node |
 | --- | --- | --- | --- | --- | --- |
-| 1 | W0.1 | 8 | A2.1 | 15 | B3.1 |
-| 2 | W0.2 (request model access at its start) | 9 | E2.1 | 16 | B3.2 → **Must scope done** |
-| 3 | N1.1 | 10 | A2.3 | 17 | B3.3 |
-| 4 | N1.4 | 11 | A2.4 | 18 | B3.4 |
-| 5 | N1.2 | 12 | A2.5 | 19 | B3.5 |
-| 6 | N1.3 | 13 | E2.2 | 20 | D4.1 |
-| 7 | A2.2 | 14 | E2.3 | 21 | D4.3 → **v0.1.0 released** |
-| | | | | 22 | D4.2 |
+| 1 | W0.1 | 9 | E2.1 | 17 | B3.2 → **Must scope done** |
+| 2 | W0.2 (request model access at its start) | 10 | A2.3 | 18 | B3.3 |
+| 3 | N1.1 | 11 | A2.4 | 19 | B3.4 |
+| 4 | N1.4 | 12 | A2.5 | 20 | B3.5 |
+| 5 | N1.2 | 13 | E2.2 | 21 | D4.1 |
+| 6 | N1.3 | 14 | E2.4 | 22 | D4.3 → **v0.1.0 released** |
+| 7 | A2.2 | 15 | E2.3 | 23 | D4.2 |
+| 8 | A2.1 | 16 | B3.1 | | |
 
 N1.4 and A2.2 come early because the router is the riskiest design and needs no model calls. Before A2.3 the owner signs off the threshold and alert mix from A2.1. The dashboard (E2.3) comes before the ROI model and PR/FAQ because both quote its numbers (P3, Appendix B). Bedrock spend by node: W0.2 under $0.10 in smoke calls; A2.3–A2.5 about $4 of dev runs and about $7 for the eval run; E2.2 about $5–10 of EvalKit judging.
 
@@ -826,13 +834,29 @@ Each row becomes one line in `docs/graph/catalog.tsv` with status `not-started`.
 | EXP-04 | Driver agreement with positive SHAP drivers | C3, FR10 |
 | EXP-05 | EvalKit `faithfulness` on stage-2 decisions, per judge, with `judge_mode` | FR10, D-11 |
 | EXP-06 | Three or more mismatch examples by a fixed rule | US4 |
+| EXP-07 | Our explanation checks registered as EvalKit scorers (`@scorer`), found by `discover()`, results beside faithfulness | E10, D-36 |
+| EXP-08 | Prompt-injection probe: planted instructions in merchant text, scored with EvalKit `attack_outcome`; no planted alert is auto-cleared | B6, D-36 |
+| EXP-09 | Judge calibration with `evalkit calibrate` on about 50 owner-labelled claims; agreement per judge reported, marked "not calibrated" until done | D-11, D-36 |
+| EXP-10 | Variant comparisons with EvalKit's paired bootstrap and Holm correction; a gap is claimed only when it survives both | D-36 |
+
+**E2.4 Monitoring and improvement**
+
+| Cap | Capability | Trace |
+| --- | --- | --- |
+| MON-01 | Run history: every `fraud evaluate` appends one line to `docs/measurements/runs.jsonl` (hashes, n, leakage bound, auto-clear rate, cost per 1,000, faithfulness, schema-error and refusal rates, p95 latency) | D-36 |
+| MON-02 | Alarm bands in `config.yaml`: leakage above 0 exits 1; schema-error rate, refusal rate, cost per 1,000 and p95 latency outside their bands raise warnings in the summary and report | D-36, E7 |
+| MON-03 | Drift check: population stability index per agent-visible feature between the frozen eval alerts and a new batch; warn above 0.1, alarm above 0.25 | D-36 |
+| MON-04 | Trend data for the dashboard, read from `runs.jsonl` | D-36 |
+| IMP-01 | Experiment ledger `docs/measurements/experiments.jsonl`: each dev-set change with hypothesis, change hash, metrics, paired result and keep-or-revert verdict, kept or not | D-36 |
+| IMP-02 | Improvement loop on the dev set only: worst cases by a fixed rule, one change at a time, kept only if leakage stays 0 and the paired gain survives Holm | D-36 |
+| IMP-03 | Freeze guard: a policy or prompt hash that differs from the eval run's forces a fresh 500 from the remaining test-period alerts before publishing (EvalKit CAL-05) | D-36 |
 
 **E2.3 Summary and dashboard**
 
 | Cap | Capability | Trace |
 | --- | --- | --- |
 | DSH-01 | `fraud evaluate` writes `summary.json` | D-14 |
-| DSH-02 | `fraud report` static HTML: safety, value, explanation and run-facts panels | Deliverables |
+| DSH-02 | `fraud report` static HTML: safety, value, explanation, monitoring-trend and run-facts panels | Deliverables, D-36 |
 | DSH-03 | One number formatter adding "on simulated data"; honesty gate switched on | NFR5, E9 |
 | DSH-04 | Deployed by workflow to the chosen host | P6 |
 | DSH-05 | `fraud report --example` from the golden run | E5 |
