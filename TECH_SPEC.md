@@ -869,7 +869,7 @@ Each row becomes one line in `docs/graph/catalog.tsv` with status `not-started`.
 | --- | --- | --- |
 | EVK-01 | EvalKit rule-compliance scorer: cited rule ids exist in a rule set and their machine-checked conditions hold on the input; used here for clause validity and router-rule checks | D-38, B4, B8 |
 | EVK-02 | EvalKit structured-evidence faithfulness: a record rendered as evidence sentences (`render_evidence`) for the two-judge scorer. The value check of reasons is this project's own (EXP-02, D-42) until EvalKit's v0.4.0 | D-38, D-11, D-42 |
-| EVK-04 | EvalKit pinned here to an exact commit that reports v0.3.0 (the release candidate until the tag exists, then the tag): B5.13 rule compliance, `render_evidence` and public `faithfulness`; then v0.4.0 for monitoring; its public symbols import at the pinned commit | E10, D-38 |
+| EVK-04 | EvalKit pinned here to an exact commit of the v0.3.0 tag: B5.13 rule compliance, `render_evidence` and public `faithfulness`; then v0.4.0 for monitoring; its public symbols import at the pinned commit | E10, D-38 |
 
 **E2.3 Summary and dashboard**
 
