@@ -18,3 +18,21 @@ thresholds:
   - metric: leakage         # OWNER D-10: no fraud auto-cleared
     op: "=="
     value: 0
+alarms:                     # MON-02 alarm bands (fraudreview.monitor); leakage > 0 always fails
+  - metric: schema_error_rate     # schema errors per scored alert
+    warn_above: 0.01
+    fail_above: 0.05
+  - metric: refusal_rate          # refusals per scored alert
+    warn_above: 0.01
+    fail_above: 0.05
+  - metric: cost_per_1000_usd     # $5 per 500-alert run (D-33) is $10 per 1,000
+    warn_above: 8
+    fail_above: 10
+  - metric: latency_p95_stage2_ms
+    warn_above: 10000
+    fail_above: 20000
+  - metric: auto_clear_rate       # the price of automation (D-40)
+    warn_below: 0.1
+  - metric: auto_clear_precision
+    warn_below: 0.98
+    fail_below: 0.95

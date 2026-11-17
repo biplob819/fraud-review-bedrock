@@ -4,6 +4,7 @@ The YAML is validated in strict JSON mode: numbers and booleans are not coerced 
 duplicate keys are refused, and the safety settings cannot be switched off from config: the
 leakage bar must be exactly `leakage == 0` (OWNER D-10), the clear ceiling is at most 0.99 and the
 minimum confidence at least 0.5 (router rules 5 and 6), and the spend cap is at most $100.
+The optional `alarms:` block holds the MON-02 alarm bands (see `AlarmBand`).
 Numbers follow JSON: YAML 1.1 forms such as `0x1F` or `1:30` are not numbers here.
 """
 
@@ -12,7 +13,7 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 import yaml
 from pydantic import Field, ValidationError, model_validator
@@ -33,6 +34,45 @@ class StageConfig(Model):
     max_output_tokens: Annotated[int, Field(ge=256, le=16_000)]
 
 
+AlarmMetric = Literal[
+    "leakage",
+    "auto_clear_rate",
+    "auto_clear_precision",
+    "cost_per_1000_usd",
+    "schema_error_rate",
+    "refusal_rate",
+    "latency_p95_stage2_ms",
+]
+Bound = Annotated[float, Field(ge=0.0, allow_inf_nan=False)]
+
+
+class AlarmBand(Model):
+    """MON-02: one alarm band. A band points one way: `*_above` bounds or `*_below` bounds, not
+    both, with at least one level set. A warning must come before the failure it leads to.
+    Leakage above 0 is always a failure whatever its band says (OWNER D-10, `monitor`)."""
+
+    metric: AlarmMetric
+    warn_above: Bound | None = None
+    fail_above: Bound | None = None
+    warn_below: Bound | None = None
+    fail_below: Bound | None = None
+
+    @model_validator(mode="after")
+    def _check(self) -> AlarmBand:
+        above = (self.warn_above, self.fail_above)
+        below = (self.warn_below, self.fail_below)
+        has_above = any(v is not None for v in above)
+        has_below = any(v is not None for v in below)
+        if has_above == has_below:
+            raise ValueError("a band sets *_above or *_below bounds (one direction, not both)")
+        wa, fa, wb, fb = self.warn_above, self.fail_above, self.warn_below, self.fail_below
+        if wa is not None and fa is not None and wa > fa:
+            raise ValueError("warn_above must not exceed fail_above")
+        if wb is not None and fb is not None and wb < fb:
+            raise ValueError("warn_below must not be under fail_below")
+        return self
+
+
 class RunConfig(Model):
     provider: Provider  # D-27: anthropic (published results, D-35) or bedrock
     region: Annotated[str, Field(pattern=r"^[a-z]{2}(-[a-z]+)+-[0-9]$")]
@@ -46,6 +86,7 @@ class RunConfig(Model):
     seed: Annotated[int, Field(ge=0, le=2**32 - 1)]
     max_cost_usd: Annotated[float, Field(gt=0.0, le=MAX_COST_CAP_USD, allow_inf_nan=False)]
     thresholds: Annotated[tuple[ThresholdResult, ...], Field(min_length=1)]
+    alarms: tuple[AlarmBand, ...] = ()  # MON-02, optional
 
     @model_validator(mode="after")
     def _check(self) -> RunConfig:
@@ -58,6 +99,8 @@ class RunConfig(Model):
             raise ValueError("each threshold metric may appear once")
         if any(t.passed is not None for t in self.thresholds):
             raise ValueError("config thresholds must not carry a result")
+        if len({a.metric for a in self.alarms}) != len(self.alarms):
+            raise ValueError("each alarm metric may appear once")
         return self
 
 
