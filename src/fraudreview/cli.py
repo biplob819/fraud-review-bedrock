@@ -84,7 +84,80 @@ def build_parser() -> argparse.ArgumentParser:
     dc.add_argument(
         "--max-cases", type=int, help="keep the first n cases in queue order (holds first)"
     )
+    jd = sub.add_parser(
+        "judge",
+        help="score stage-2 explanations with EvalKit faithfulness (two judges); "
+        "--dry-run prints the estimate only",
+    )
+    jd.add_argument("--run", type=Path, required=True, help="a finished run folder")
+    jd.add_argument("--cases", type=Path, required=True, help="the alert cases JSONL")
+    jd.add_argument("--max-items", type=int, help="judge only the first n stage-2 decisions")
+    jd.add_argument("--cap-usd", type=float, default=10.0, help="refuse and stop above this spend")
+    jd.add_argument("--dry-run", action="store_true", help="estimate only; no model calls")
+    jd.add_argument("--store", type=Path, default=Path(".fraud/judge-store"), help="judge cache")
+    jd.add_argument(
+        "--out", type=Path, help="where to write results (default: <run>/faithfulness.json)"
+    )
     return ap
+
+
+def _judge(args: argparse.Namespace) -> int:
+    from fraudreview import judging
+    from fraudreview.ledger import LEDGER
+
+    if args.max_items is not None and args.max_items < 1:
+        print("fraud judge: --max-items must be at least 1", file=sys.stderr)
+        return 2
+    if not args.cap_usd > 0:
+        print("fraud judge: --cap-usd must be above 0", file=sys.stderr)
+        return 2
+    try:
+        loaded = judging.load_run(args.run, args.cases)
+        items = judging.build_items(loaded.decisions, loaded.cases)
+    except (OSError, ValueError, KeyError) as exc:
+        print(f"fraud judge: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return 2
+    if args.max_items is not None:
+        items = items[: args.max_items]
+    if not items:
+        print("fraud judge: no stage-2 decisions with an output to judge", file=sys.stderr)
+        return 2
+    est = judging.estimate(items)
+    print(judging.format_estimate({**est, "cap_usd": args.cap_usd}))
+    if est["total_usd"] > args.cap_usd:  # printed first, so the number is visible
+        print(
+            f"fraud judge: the estimate ${est['total_usd']:.2f} is over the "
+            f"${args.cap_usd:g} cap; lower --max-items or raise --cap-usd",
+            file=sys.stderr,
+        )
+        return 2
+    if args.dry_run:
+        return 0
+    from evalkit.runtime.executor import BudgetExceeded
+
+    load_env_file(Path(".env"))
+    out = args.out or args.run / "faithfulness.json"
+    run_id = f"faithfulness-{args.run.name}"
+    try:
+        results = judging.judge(
+            items,
+            cap_usd=args.cap_usd,
+            store_dir=args.store,
+            ledger_path=ROOT / LEDGER,
+            run_id=run_id,
+        )
+    except judging.JudgingRefused as exc:
+        print(f"fraud judge: {exc}", file=sys.stderr)
+        return 2
+    except BudgetExceeded as exc:
+        print(f"fraud judge: stopped at the spend cap: {exc}; rerun to resume", file=sys.stderr)
+        return 3
+    summ = judging.summary(results, loaded.decisions)
+    body = {"summary": summ, "results": [r.model_dump(mode="json") for r in results]}
+    out.write_text(json.dumps(body, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    print(json.dumps(summ, indent=2, sort_keys=True))
+    print(f"-> {out}")
+    return 0
 
 
 def _demo_cache(args: argparse.Namespace) -> int:
@@ -471,6 +544,8 @@ def _dispatch(argv: list[str] | None) -> int:
         return _freeze(args)
     if args.command == "demo-cache":
         return _demo_cache(args)
+    if args.command == "judge":
+        return _judge(args)
     parser.print_help()
     return 0
 
