@@ -1,11 +1,12 @@
 # E2.2 run state
 
-**Now:** building
+**Now:** green
 
 ## History
 - 2026-11-17 — built in parallel lanes after E2.5. Judging overspent its approval (about $28.79 against $15; OWNER D-43); the result is an Opus-only partial summarised from cache. EXP-09 moved out of v0.1.0.
 - 2026-11-17 — verifier pass 1: two must-fix, both fixed. (1) The judging cap restarted on every invocation, so a rerun could overspend again (the cause of D-43): `fraud judge` now sums the ledger for the run id and treats the cap as a total, refuses when it is reached, and no longer says to rerun; a test covers it. (2) The committed summary did not say what it is: it now carries `judge_mode` single, a partial flag and notes on the two measurement defects and on calibration, and a contract test checks them. Should-fix applied: the summary separates the 465 extracted explanations from the 458 with claims, the cost check compares the judge plus extractor within 5 cents, the D-43 text says where the $15 came from and splits Opus from extraction cost, the protected scan no longer flags card-age or state-of-the-art wording and now catches more demographic terms, and the comparison says "safer, less automation" whenever a claimed leakage fall comes with a claimed auto-clear fall.
 - 2026-11-17 — verifier pass 2: two must-fix, fixed. (1) The dry run still planned with EvalKit's 4.5 claims per item, about 2.7 times too low for these explanations, which is why the $14.18 estimate led to the overspend: it now prints a warning when the planning default is used, takes `--claims-per-item`, and D-43 records the cause. (2) A spec line said $28.79 on the Opus judge alone; it is $28.59 on Opus and $0.20 on extraction. Also closed: a renamed run folder could have started a fresh cap, so the cap now sums every `faithfulness` ledger line; the summary notes that claims within an explanation are not independent and that the fully-judged set is a selected subset; a claimed auto-clear fall with an unclaimed leakage fall is reported as "less automation", not "safer". Left open (should-fix): two simultaneous `fraud judge` processes could both read the ledger before either writes (a lock file would close it), and a few protected-scan edge words.
+- 2026-11-17 — verifier pass 3: no must-fix. Should-fix applied: the dry-run warning says "at least" 2.7 times, since the Opus judge also cost about 1.5 times its per-claim estimate, and the estimate header says it is priced for two judges. Green.
 
 ## Open should-fix (carried forward)
 - Judging results name decision ids that embed alert ids in stdout and `results/` (not committed); hash them before sharing any output.

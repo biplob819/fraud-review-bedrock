@@ -204,7 +204,7 @@ def format_estimate(est: Mapping[str, Any]) -> str:
     ]
     head = (
         f"{est['items']} items, about {est['claims']} claims "
-        f"({est['claims_per_item']:g} per item); no model calls made"
+        f"({est['claims_per_item']:g} per item), priced for two judges; no model calls made"
     )
     cap = "" if est.get("cap_usd") is None else f" (cap ${est['cap_usd']:g})"
     lines = [head, *table, f"estimated total ${est['total_usd']:.2f}{cap}"]
@@ -212,7 +212,8 @@ def format_estimate(est: Mapping[str, Any]) -> str:
         lines.append(
             f"WARNING: {est['claims_per_item']:g} claims per item is a planning default; this "
             f"project's explanations measured {MEASURED_CLAIMS_PER_ITEM:g}, so a real run costs "
-            f"about {MEASURED_CLAIMS_PER_ITEM / est['claims_per_item']:.1f}x this estimate. "
+            f"at least {MEASURED_CLAIMS_PER_ITEM / est['claims_per_item']:.1f}x this estimate "
+            "(the Opus judge also cost about 1.5x its per-claim estimate). "
             "Pass --claims-per-item to plan with a measured figure."
         )
     return "\n".join(lines)
