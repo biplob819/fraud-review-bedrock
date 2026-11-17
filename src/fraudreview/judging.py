@@ -189,6 +189,10 @@ def estimate(
     return out
 
 
+PLANNING_CLAIMS_PER_ITEM = 4.5  # EvalKit's default, measured on short PubMedQA answers
+MEASURED_CLAIMS_PER_ITEM = 12.1  # measured on this project's explanations (OWNER D-43)
+
+
 def format_estimate(est: Mapping[str, Any]) -> str:
     rows = [("step", "model", "calls", "usd")]
     rows += [(ln["node"], ln["model"], str(ln["calls"]), f"{ln['usd']:.4f}") for ln in est["lines"]]
@@ -203,7 +207,15 @@ def format_estimate(est: Mapping[str, Any]) -> str:
         f"({est['claims_per_item']:g} per item); no model calls made"
     )
     cap = "" if est.get("cap_usd") is None else f" (cap ${est['cap_usd']:g})"
-    return "\n".join([head, *table, f"estimated total ${est['total_usd']:.2f}{cap}"])
+    lines = [head, *table, f"estimated total ${est['total_usd']:.2f}{cap}"]
+    if est["claims_per_item"] <= PLANNING_CLAIMS_PER_ITEM + 1e-9:
+        lines.append(
+            f"WARNING: {est['claims_per_item']:g} claims per item is a planning default; this "
+            f"project's explanations measured {MEASURED_CLAIMS_PER_ITEM:g}, so a real run costs "
+            f"about {MEASURED_CLAIMS_PER_ITEM / est['claims_per_item']:.1f}x this estimate. "
+            "Pass --claims-per-item to plan with a measured figure."
+        )
+    return "\n".join(lines)
 
 
 # ------------------------------------------------------------------ live judging
@@ -241,12 +253,17 @@ def _check_keys(config: EvalKitConfig) -> None:
         )
 
 
-def spent_for(ledger: Path, run_id: str) -> float:
-    """Everything the ledger records for one run id (the judging runs write one line each)."""
+def spent_for(ledger: Path, run_id: str | None = None) -> float:
+    """Everything the ledger records for judging: every line of the `faithfulness` split, so a
+    renamed run folder cannot start a fresh cap. Pass a run id to count just that run."""
     if not ledger.exists():
         return 0.0
-    rows = (json.loads(x) for x in ledger.read_text(encoding="utf-8").splitlines() if x.strip())
-    return sum(float(r["actual_usd"]) for r in rows if r.get("run_id") == run_id)
+    rows = [json.loads(x) for x in ledger.read_text(encoding="utf-8").splitlines() if x.strip()]
+    return sum(
+        float(r["actual_usd"])
+        for r in rows
+        if r.get("split") == "faithfulness" and (run_id is None or r.get("run_id") == run_id)
+    )
 
 
 async def judge_async(
@@ -264,13 +281,13 @@ async def judge_async(
     config = config or eval_config()
     prices = prices if prices is not None else load_prices()
     ledger = ledger_path or Path(LEDGER)
-    # The cap is a TOTAL for this run id across every invocation (a rerun that restarted the cap
-    # caused OWNER D-43): what the ledger already holds for it counts against the cap.
-    spent_before = spent_for(ledger, run_id)
+    # The cap is a TOTAL for judging across every invocation (a rerun that restarted the cap
+    # caused OWNER D-43): everything the ledger holds for judging counts against the cap.
+    spent_before = spent_for(ledger)
     remaining = cap_usd - spent_before
     if remaining <= 0:
         raise JudgingRefused(
-            f"${spent_before:.2f} is already spent on {run_id}, which reaches the ${cap_usd:g} "
+            f"${spent_before:.2f} is already spent on judging, which reaches the ${cap_usd:g} "
             "cap; raise the cap only after the owner approves a new total"
         )
     est = estimate(items, config, prices, cap_usd=remaining)  # refuses before anything is spent

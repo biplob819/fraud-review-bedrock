@@ -147,4 +147,4 @@ def test_fewer_leaks_with_a_claimed_automation_loss_is_safer_not_worse():
     r = c.compare_runs(runs(before), runs(after), labels)
     assert r.gap("auto_clear").claimed and r.gap("auto_clear").diff < 0
     assert not r.gap("leakage").claimed and r.gap("leakage").diff < 0
-    assert c.verdict(r) == "safer, less automation"
+    assert c.verdict(r) == "less automation"  # the leakage fall is not a claimed gap

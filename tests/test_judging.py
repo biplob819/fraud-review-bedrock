@@ -372,5 +372,34 @@ def test_the_cap_is_a_total_across_reruns_of_the_same_run(tmp_path: Path) -> Non
         judging.judge(items, cap_usd=est["total_usd"], **kwargs)  # type: ignore[arg-type]
     assert judging.spent_for(ledger, "r") <= est["total_usd"] + 1e-9
     # a cap already reached is refused before any call
-    with pytest.raises(judging.JudgingRefused, match="already spent"):
+    with pytest.raises(judging.JudgingRefused, match="already spent on judging"):
         judging.judge(items, cap_usd=judging.spent_for(ledger, "r"), **kwargs)  # type: ignore[arg-type]
+
+
+def test_dry_run_warns_that_the_default_claims_per_item_is_a_planning_figure(capsys):
+    _, items = _items()
+    text = judging.format_estimate(judging.estimate(items))
+    assert "WARNING" in text and "planning default" in text and "12.1" in text
+    measured = judging.format_estimate(judging.estimate(items, claims_per_item=12.1))
+    assert "WARNING" not in measured
+
+
+@pytest.mark.safety
+def test_a_renamed_run_cannot_start_a_fresh_cap(tmp_path: Path) -> None:
+    ledger = tmp_path / "ledger.jsonl"
+    ledger.write_text(
+        '{"actual_usd": 9.0, "split": "faithfulness", "run_id": "faithfulness-a"}\n'
+        '{"actual_usd": 4.0, "split": "dev", "run_id": "dev-100"}\n',
+        encoding="utf-8",
+    )
+    assert judging.spent_for(ledger) == 9.0 and judging.spent_for(ledger, "faithfulness-b") == 0
+    _, items = _items()
+    with pytest.raises(judging.JudgingRefused, match="already spent on judging"):
+        judging.judge(
+            items,
+            cap_usd=9.0,
+            store_dir=tmp_path / "s",
+            ledger_path=ledger,
+            run_id="faithfulness-b",
+            adapters=_adapters(Fake([i.explanation for i in items])),
+        )

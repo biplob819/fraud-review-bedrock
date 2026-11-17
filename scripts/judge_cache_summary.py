@@ -56,6 +56,9 @@ def main(out: Path | None) -> dict[str, object]:
             "Policy statements (for example that a clause forbids clearing) have no policy text "
             "among the evidence, so correct policy citations read as unsupported.",
             "The judge is not calibrated against owner labels (EXP-09 moved out of v0.1.0).",
+            "Claims inside one explanation are not independent, so the claim-level interval is "
+            "too narrow; the fully-judged explanations are a selected subset (those whose every "
+            "claim was reached before the cap).",
         ],
         "judges": {},
     }

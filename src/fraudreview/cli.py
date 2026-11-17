@@ -96,6 +96,12 @@ def build_parser() -> argparse.ArgumentParser:
     jd.add_argument("--dry-run", action="store_true", help="estimate only; no model calls")
     jd.add_argument("--store", type=Path, default=Path(".fraud/judge-store"), help="judge cache")
     jd.add_argument(
+        "--claims-per-item",
+        type=float,
+        help="claims per explanation to plan with (this project's explanations measured about "
+        "12; the default planning figure is far lower)",
+    )
+    jd.add_argument(
         "--out", type=Path, help="where to write results (default: <run>/faithfulness.json)"
     )
     return ap
@@ -122,7 +128,7 @@ def _judge(args: argparse.Namespace) -> int:
     if not items:
         print("fraud judge: no stage-2 decisions with an output to judge", file=sys.stderr)
         return 2
-    est = judging.estimate(items)
+    est = judging.estimate(items, claims_per_item=args.claims_per_item)
     print(judging.format_estimate({**est, "cap_usd": args.cap_usd}))
     if est["total_usd"] > args.cap_usd:  # printed first, so the number is visible
         print(
