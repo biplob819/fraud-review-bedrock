@@ -25,7 +25,7 @@ from fraudreview.router import guard_request
 from fraudreview.schemas import Stage1Output, Stage2Output, Tokens, TriageDecision
 
 ErrorKind = Literal["schema", "refusal", "transport"]
-CODE_VERSION = "2"  # the `model_call` step; bump with any change to this module (BRK-03)
+CODE_VERSION = "3"  # the `model_call` step; bump with any change to this module (BRK-03)
 MAX_TRANSPORT_ATTEMPTS = 6  # §2.4
 MAX_SCHEMA_ATTEMPTS = 2  # one retry, same prompt (FR7)
 BACKOFF_BASE_S = 1.0
@@ -126,8 +126,8 @@ def _classify(exc: BaseException) -> Literal["transient", "config", "invalid"] |
         return "invalid"
     import json as _json
 
-    if isinstance(exc, _json.JSONDecodeError):  # a billed 200 whose body is not JSON
-        return "invalid"
+    if isinstance(exc, (_json.JSONDecodeError, UnicodeDecodeError)):  # a billed 200 we cannot
+        return "invalid"  # decode
     if isinstance(exc, anthropic.APIStatusError):
         status = exc.status_code
         if status in (408, 409, 429) or status >= 500:  # 529 is overload
@@ -155,9 +155,15 @@ def backoff_s(attempt: int, rng: random.Random) -> float:
 
 
 def _reply_text(message: Any) -> str | None:
-    for block in getattr(message, "content", None) or []:
+    """The first text block, or None for anything malformed (a reply is read defensively: the
+    SDK builds replies without strict validation, so any field may hold any type)."""
+    content = getattr(message, "content", None)
+    if not isinstance(content, list):
+        return None
+    for block in content:
         if getattr(block, "type", None) == "text":
-            return block.text
+            text = getattr(block, "text", None)
+            return text if isinstance(text, str) else None
     return None
 
 
@@ -233,6 +239,8 @@ async def call_model(
         else:
             tokens = _add(tokens, metered)
         stop_reason = getattr(message, "stop_reason", None)
+        if not isinstance(stop_reason, str):
+            stop_reason = None
         if stop_reason == "refusal":
             return done(None, "refusal")
         text = _reply_text(message)
@@ -247,6 +255,36 @@ async def call_model(
                 return done(None, "schema")
             continue
         return done(output, None)
+
+
+async def settled_call(
+    client: Any,
+    body: dict[str, Any],
+    output_model: type[BaseModel],
+    *,
+    cap: Any,
+    price: dict[str, float],
+    **kw: Any,
+) -> tuple[CallResult, float]:
+    """Reserve the worst case, call, and settle the spend cap on every path (BRK-05).
+    - Success: commit what was billed (`billed_cost`).
+    - `ProviderConfigError`: commit what earlier attempts billed, then re-raise (exit 2).
+    - Any other exception: commit the whole reservation, since a reply may have been billed
+      before the failure, then re-raise. Spend is never released unrecorded.
+    `commit` may raise `CapReached` (exit 3) after recording."""
+    reserve = worst_case_cost(body, price)
+    token = await cap.reserve(reserve)
+    try:
+        result = await call_model(client, body, output_model, **kw)
+    except ProviderConfigError as exc:
+        await cap.commit(token, billed_cost(exc.tokens, exc.unmetered, body, price))
+        raise
+    except BaseException:
+        await cap.commit(token, reserve)
+        raise
+    usd = billed_cost(result.tokens, result.unmetered, body, price)
+    await cap.commit(token, usd)
+    return result, usd
 
 
 def make_client(config: RunConfig) -> Any:

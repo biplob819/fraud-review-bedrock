@@ -285,6 +285,16 @@ def test_unreadable_billed_replies_are_priced_at_worst_case(monkeypatch):
         ([raw("plain words", "text/plain"), raw("more", "text/plain")], 2, "schema"),
         ([json_reply(message_json())], 1, None),  # valid reply, no usage: still billed
         ([json_reply(message_json({"input_tokens": "7", "output_tokens": None}))], 1, None),
+        (  # invalid UTF-8 in a JSON body: the SDK raises UnicodeDecodeError
+            [raw('{"a":"\xc3\x28"}', "application/json"), json_reply(message_json(good_usage))],
+            1,
+            None,
+        ),
+        (  # content that is not a list, with readable usage: an invalid reply, metered
+            [json_reply({**message_json(good_usage), "content": 5})] * 2,
+            0,
+            "schema",
+        ),
     ]
     b, price = body(), PRICES["claude-haiku-5-5"]
     for script, unmetered, error in cases:
@@ -292,7 +302,33 @@ def test_unreadable_billed_replies_are_priced_at_worst_case(monkeypatch):
         out = run(client())
         assert out.unmetered == unmetered and out.error == error, script
         billed = llm.billed_cost(out.tokens, out.unmetered, b, price)
-        assert billed >= unmetered * llm.worst_case_cost(b, price) / 2 > 0
+        assert billed >= unmetered * llm.worst_case_cost(b, price) / 2 and billed > 0
+
+
+def test_settled_call_records_spend_on_every_path():
+    b, price = body(), PRICES["claude-haiku-5-5"]
+    worst = llm.worst_case_cost(b, price)
+
+    async def go(client: Any, cap: cost.SpendCap) -> Any:
+        async def sleep(_: float) -> None:
+            return None
+
+        return await llm.settled_call(
+            client, b, Stage1Output, cap=cap, price=price, sleep=sleep, rng=random.Random(0)
+        )
+
+    cap = cost.SpendCap(5.0)
+    result, usd = asyncio.run(go(Script(reply()), cap))
+    assert usd == pytest.approx(cost.call_cost(result.tokens, price)) and cap.reserved == {}
+    assert cap.actual == pytest.approx(usd)
+    cap = cost.SpendCap(5.0)
+    with pytest.raises(llm.ProviderConfigError):
+        asyncio.run(go(Script(reply("bad", output_tokens=40), status_error(400)), cap))
+    assert cap.actual > 0 and cap.reserved == {}  # the first, billed attempt is recorded
+    cap = cost.SpendCap(5.0)
+    with pytest.raises(KeyError):  # an unknown failure: the whole reservation is recorded
+        asyncio.run(go(Script(KeyError("bug")), cap))
+    assert cap.actual == pytest.approx(worst) and cap.reserved == {}
 
 
 def test_missing_key_is_named_before_any_call(monkeypatch):
