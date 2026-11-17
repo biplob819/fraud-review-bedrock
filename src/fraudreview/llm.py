@@ -25,6 +25,7 @@ from fraudreview.router import guard_request
 from fraudreview.schemas import Stage1Output, Stage2Output, Tokens, TriageDecision
 
 ErrorKind = Literal["schema", "refusal", "transport"]
+CODE_VERSION = "2"  # the `model_call` step; bump with any change to this module (BRK-03)
 MAX_TRANSPORT_ATTEMPTS = 6  # §2.4
 MAX_SCHEMA_ATTEMPTS = 2  # one retry, same prompt (FR7)
 BACKOFF_BASE_S = 1.0
@@ -82,17 +83,24 @@ def build_body(
     }
 
 
-def _usage(u: Any) -> Tokens:
-    def n(name: str) -> int:
-        v = getattr(u, name, 0)
-        return int(v) if isinstance(v, int) and v >= 0 else 0
+def _count(v: Any) -> int | None:
+    return v if isinstance(v, int) and not isinstance(v, bool) and v >= 0 else None
 
-    return Tokens(
-        input=n("input_tokens"),
-        output=n("output_tokens"),
-        cache_read=n("cache_read_input_tokens"),
-        cache_write=n("cache_creation_input_tokens"),
+
+def _usage(u: Any) -> Tokens | None:
+    """The reply's metered tokens, or None when usage is missing or unreadable (the reply is
+    still billed; the caller prices it at the worst case). Cache fields may be absent or null."""
+    inp, out = _count(getattr(u, "input_tokens", None)), _count(getattr(u, "output_tokens", None))
+    if u is None or inp is None or out is None:
+        return None
+    cache_read, cache_write = (
+        getattr(u, "cache_read_input_tokens", None),
+        getattr(u, "cache_creation_input_tokens", None),
     )
+    for v in (cache_read, cache_write):
+        if v is not None and _count(v) is None:
+            return None
+    return Tokens(input=inp, output=out, cache_read=cache_read or 0, cache_write=cache_write or 0)
 
 
 def _add(a: Tokens, b: Tokens) -> Tokens:
@@ -115,6 +123,10 @@ def _classify(exc: BaseException) -> Literal["transient", "config", "invalid"] |
     if isinstance(exc, anthropic.APIConnectionError):  # includes timeouts
         return "transient"
     if isinstance(exc, anthropic.APIResponseValidationError):  # a billed 200 we cannot read
+        return "invalid"
+    import json as _json
+
+    if isinstance(exc, _json.JSONDecodeError):  # a billed 200 whose body is not JSON
         return "invalid"
     if isinstance(exc, anthropic.APIStatusError):
         status = exc.status_code
@@ -213,7 +225,13 @@ async def call_model(
             await sleep(backoff_s(transport_failures, rng))
             continue
         request_id = getattr(message, "_request_id", None) or getattr(message, "id", None)
-        tokens = _add(tokens, _usage(getattr(message, "usage", None)))
+        if not isinstance(request_id, str):
+            request_id = None
+        metered = _usage(getattr(message, "usage", None))
+        if metered is None:  # billed, but we cannot read what it cost: price the worst case
+            unmetered += 1
+        else:
+            tokens = _add(tokens, metered)
         stop_reason = getattr(message, "stop_reason", None)
         if stop_reason == "refusal":
             return done(None, "refusal")

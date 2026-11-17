@@ -239,6 +239,62 @@ def test_aws_credential_errors_are_config_and_bugs_are_not_hidden():
     assert err.value.tokens.output == 40
 
 
+def message_json(usage: Any = None, text: str = GOOD) -> dict[str, Any]:
+    m: dict[str, Any] = {
+        "id": "msg_1",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-haiku-5-5",
+        "content": [{"type": "text", "text": text}],
+        "stop_reason": "end_turn",
+        "stop_sequence": None,
+    }
+    if usage is not None:
+        m["usage"] = usage
+    return m
+
+
+def test_unreadable_billed_replies_are_priced_at_worst_case(monkeypatch):
+    """Through the real SDK client on a mock transport: a 200 whose body is not JSON, is plain
+    text, or has no readable usage is billed, so it is unmetered and priced at the worst case."""
+    replies: list[httpx2.Response] = []
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        return replies.pop(0)
+
+    def client() -> anthropic.AsyncAnthropic:
+        transport = httpx2.MockTransport(handler)
+        return anthropic.AsyncAnthropic(
+            api_key="sk-ant-test",
+            max_retries=0,
+            http_client=httpx2.AsyncClient(transport=transport),
+        )
+
+    def json_reply(data: Any) -> httpx2.Response:
+        return httpx2.Response(200, json=data)
+
+    def raw(text: str, ctype: str) -> httpx2.Response:
+        return httpx2.Response(200, content=text.encode(), headers={"content-type": ctype})
+
+    good_usage = {"input_tokens": 700, "output_tokens": 50}
+    replies[:] = [json_reply(message_json(good_usage))]
+    ok = run(client())
+    assert ok.error is None and ok.unmetered == 0 and ok.tokens.output == 50
+    cases = [
+        ([raw("{not json", "application/json"), json_reply(message_json(good_usage))], 1, None),
+        ([raw("plain words", "text/plain"), raw("more", "text/plain")], 2, "schema"),
+        ([json_reply(message_json())], 1, None),  # valid reply, no usage: still billed
+        ([json_reply(message_json({"input_tokens": "7", "output_tokens": None}))], 1, None),
+    ]
+    b, price = body(), PRICES["claude-haiku-5-5"]
+    for script, unmetered, error in cases:
+        replies[:] = script
+        out = run(client())
+        assert out.unmetered == unmetered and out.error == error, script
+        billed = llm.billed_cost(out.tokens, out.unmetered, b, price)
+        assert billed >= unmetered * llm.worst_case_cost(b, price) / 2 > 0
+
+
 def test_missing_key_is_named_before_any_call(monkeypatch):
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     with pytest.raises(llm.ProviderConfigError, match="ANTHROPIC_API_KEY"):
@@ -330,15 +386,15 @@ def test_concurrent_writers_leave_exactly_one_entry(tmp_path):
 
 @pytest.mark.contract
 def test_registered_steps_match_their_code_versions(tmp_path):
-    steps = {"model_call": ("1", llm)}  # the whole module: helpers and constants count
+    steps = {"model_call": (llm.CODE_VERSION, llm)}  # the whole module: helpers and constants count
     assert cache.code_version_problems(steps) == []
     reg = tmp_path / "r.json"
     reg.write_text(
-        json.dumps({"model_call": {"code_version": "1", "source_sha256": "0" * 64}}),
+        json.dumps({"model_call": {"code_version": llm.CODE_VERSION, "source_sha256": "0" * 64}}),
         encoding="utf-8",
     )
     assert "bump code_version" in cache.code_version_problems(steps, reg)[0]
-    assert "stale" in cache.code_version_problems({"model_call": ("2", llm)}, reg)[0]
+    assert "stale" in cache.code_version_problems({"model_call": ("99", llm)}, reg)[0]
     assert "not in" in cache.code_version_problems({"x": ("1", llm)}, reg)[0]
 
 

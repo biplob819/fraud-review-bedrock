@@ -864,8 +864,8 @@ Each row becomes one line in `docs/graph/catalog.tsv` with status `not-started`.
 | --- | --- | --- |
 | EVK-01 | EvalKit rule-compliance scorer: cited rule ids exist in a rule set and their machine-checked conditions hold on the input; used here for clause validity and router-rule checks | D-38, B4, B8 |
 | EVK-02 | EvalKit structured-evidence faithfulness: a record rendered as numbered evidence sentences for the two-judge scorer, plus a value check of numbers and comparisons in reasons against the record | D-38, D-11, C3 |
-| EVK-03 | EvalKit monitoring: run-history file, alarm bands, a PSI drift check per feature and a trend chart in its report | D-38 |
-| EVK-04 | EvalKit pinned here at the v0.3.0 commit; its new public symbols import at that version | E10, D-38 |
+| EVK-03 | EvalKit monitoring: run-history file, alarm bands, a PSI drift check per feature and a trend chart in its report (EvalKit B5.7, v0.4.0; until then E2.4 uses EvalKit's v0.3.0 run-vs-run compare) | D-38 |
+| EVK-04 | EvalKit pinned here at the v0.3.0 release (B5.13 rule compliance and structured evidence, public `faithfulness`), then v0.4.0 for monitoring; its new public symbols import at the pinned version | E10, D-38 |
 
 **E2.3 Summary and dashboard**
 

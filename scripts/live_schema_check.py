@@ -17,7 +17,14 @@ from fraudreview.config import load_config
 from fraudreview.cost import SpendCap
 from fraudreview.doctor import price_table
 from fraudreview.ledger import append_spend
-from fraudreview.llm import billed_cost, build_body, call_model, make_client, worst_case_cost
+from fraudreview.llm import (
+    ProviderConfigError,
+    billed_cost,
+    build_body,
+    call_model,
+    make_client,
+    worst_case_cost,
+)
 from fraudreview.schemas import Stage1Output, Stage2Output
 
 ALERT = {
@@ -61,7 +68,12 @@ async def main(out: Path) -> int:
             reserve = worst_case_cost(body, prices[cfg.model])
             reserved_total += reserve
             token = await cap.reserve(reserve)
-            result = await call_model(client, body, model)
+            try:
+                result = await call_model(client, body, model)
+            except ProviderConfigError as exc:  # settle what earlier attempts billed
+                total += billed_cost(exc.tokens, exc.unmetered, body, prices[cfg.model])
+                attempts += 1
+                raise
             attempts += result.attempts
             usd = billed_cost(result.tokens, result.unmetered, body, prices[cfg.model])
             await cap.commit(token, usd)
