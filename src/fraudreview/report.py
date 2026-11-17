@@ -401,7 +401,7 @@ def safety(s: RunSummary) -> str:
             ["frauds auto-cleared; ", bound, " ", FMT.pct(leak.hi, n=leak.n)],
         )
         + stat(
-            "End-to-end recall",
+            "End-to-end recall, among alerts the baseline raised",
             FMT.rate(rec),
             ["frauds that reach a person, ", FMT.kn(rec.k, rec.n)],
         )

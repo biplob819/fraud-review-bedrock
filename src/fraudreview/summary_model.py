@@ -94,8 +94,10 @@ class FaithfulnessDetail(Model):
 
     @model_validator(mode="after")
     def _check(self) -> FaithfulnessDetail:
-        if self.partial and not self.notes:
-            raise ValueError("a partial faithfulness result must carry its notes")
+        if not self.notes:
+            raise ValueError(
+                "a faithfulness result must carry its notes (single judge, calibration)"
+            )
         return self
 
 
