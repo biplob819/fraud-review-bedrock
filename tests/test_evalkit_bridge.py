@@ -18,7 +18,7 @@ from fraudreview.router import RouterSettings, check_clear
 ROOT = Path(__file__).resolve().parent.parent
 POLICY = load_policy(ROOT / "policy.md")
 RULES = b.ruleset(POLICY)
-PIN = "add5af9b8af3bc8482f1408aa1206edd6340bfbe"
+PIN = "118b661f570b412c952df48736e59d16b6455a6d"  # the v0.3.0 release candidate; moves to the tag
 AT = datetime(2026, 1, 5, 14, 30, tzinfo=UTC)
 LOOSE = RouterSettings(clear_ceiling=0.99, clear_min_confidence=0.5)  # rules 5-6 kept out
 
@@ -223,7 +223,7 @@ def test_value_shares_counts_every_reason_and_agrees_with_valuecheck():
 
 
 @pytest.mark.contract
-def test_evalkit_is_pinned_to_the_v0_3_development_commit_and_its_api_imports():
+def test_evalkit_is_pinned_to_the_v0_3_commit_and_its_api_imports():
     project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     pin = next(x for x in project["project"]["dependencies"] if x.startswith("evalkit-harness"))
     assert pin == f"evalkit-harness @ git+https://github.com/biplob819/evalkit@{PIN}"

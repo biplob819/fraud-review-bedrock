@@ -19,7 +19,7 @@ dependencies = [
     "shap>=0.46",
     "scipy>=1.13",
     "numpy>=1.26",
-    "evalkit-harness @ git+https://github.com/biplob819/evalkit@add5af9b8af3bc8482f1408aa1206edd6340bfbe",  # v0.3.0 dev (B5.2, B5.13)
+    "evalkit-harness @ git+https://github.com/biplob819/evalkit@118b661f570b412c952df48736e59d16b6455a6d",  # v0.3.0 release candidate (B5.2, B5.13); moves to the tag
 ]
 
 [project.urls]
