@@ -608,7 +608,6 @@ def test_dry_run_prints_estimate_makes_no_call_and_refuses_over_cap(capsys, monk
     assert "100 calls" in out and "estimated total $1.34" in out
     assert cli.main([*base, "--split", "eval", "--alerts", "500", "--dry-run"]) == 2
     assert "over max_cost_usd" in capsys.readouterr().err
-    assert cli.main([*base, "--split", "dev", "--alerts", "5"]) == 2  # live arrives in A2.5
     bad = ROOT / "prices.yaml"
     import yaml
 

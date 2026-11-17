@@ -25,10 +25,8 @@ from fraudreview.policy import Policy
 from fraudreview.router import RouterSettings, check_clear, dispose
 from fraudreview.schemas import AlertCase, Disposition, TriageDecision
 
-STAGE_CODE_VERSION = "4"
-SCHEMAS_HASH = source_hash(schemas)[
-    :16
-]  # bump when this module's logic changes (code_versions.json)
+STAGE_CODE_VERSION = "5"  # bump when this module's logic changes (code_versions.json)
+SCHEMAS_HASH = source_hash(schemas)[:16]  # validators the JSON schema cannot express
 
 
 @dataclass
@@ -46,30 +44,37 @@ def decision_id(alert_id: str, stage: int) -> str:
     return f"{alert_id}-s{stage}"
 
 
+def stage_key(stage: Literal[1, 2], case: AlertCase, ctx: Context) -> str:
+    """The cache key for one stage call: the §2.1 fields plus everything else that decides the
+    call or how its reply is handled."""
+    cfg = ctx.config.stage1 if stage == 1 else ctx.config.stage2
+    return cache_key(
+        step=f"stage{stage}",
+        code_version=STAGE_CODE_VERSION,
+        inp={
+            "alert_id": case.alert_id,
+            "user": prompts.render_alert(case),
+            "provider": ctx.config.provider,
+            "max_output_tokens": cfg.max_output_tokens,
+            "prompts_code_version": prompts.PROMPTS_CODE_VERSION,
+            "model_call_code_version": llm.CODE_VERSION,
+            "schemas_source": SCHEMAS_HASH,
+        },
+        model=cfg.model,
+        effort=cfg.effort,
+        prompt_hash=prompts.prompt_hash(stage, ctx.policy),
+        policy_version=ctx.policy.version,
+        seed=ctx.config.seed,
+    )
+
+
 async def run_stage(stage: Literal[1, 2], case: AlertCase, ctx: Context) -> TriageDecision:
     cfg = ctx.config.stage1 if stage == 1 else ctx.config.stage2
     output_model = prompts.OUTPUT_MODELS[stage]
     system = prompts.system_blocks(stage, ctx.policy)
     user = prompts.render_alert(case)
     phash = prompts.prompt_hash(stage, ctx.policy)
-    key = cache_key(
-        step=f"stage{stage}",
-        code_version=STAGE_CODE_VERSION,
-        inp={  # everything else that decides the call or how its reply is handled
-            "alert_id": case.alert_id,
-            "user": user,
-            "provider": ctx.config.provider,
-            "max_output_tokens": cfg.max_output_tokens,
-            "prompts_code_version": prompts.PROMPTS_CODE_VERSION,
-            "model_call_code_version": llm.CODE_VERSION,
-            "schemas_source": SCHEMAS_HASH,  # validators the JSON schema cannot express
-        },
-        model=cfg.model,
-        effort=cfg.effort,
-        prompt_hash=phash,
-        policy_version=ctx.policy.version,
-        seed=ctx.config.seed,
-    )
+    key = stage_key(stage, case, ctx)
     cached = ctx.store.get(key, STAGE_CODE_VERSION)
     if cached is not None:
         hit = TriageDecision.model_validate_json(json.dumps(cached))

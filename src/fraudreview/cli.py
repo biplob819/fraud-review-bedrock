@@ -59,6 +59,15 @@ def build_parser() -> argparse.ArgumentParser:
     tri.add_argument("--config", type=Path, default=Path("config.yaml"))
     tri.add_argument("--prices", type=Path, default=Path("prices.yaml"))
     tri.add_argument("--cases", type=Path, default=Path("results/baseline"), help="alert samples")
+    tri.add_argument("--out", type=Path, default=Path("results"), help="where run folders go")
+    tri.add_argument("--store", type=Path, default=Path(".fraud/store"), help="response cache")
+    tri.add_argument(
+        "--record-golden",
+        type=Path,
+        help="after a finished run, write it as the golden replay fixture (RUN-05)",
+    )
+    fr = sub.add_parser("freeze", help="record the settings the eval run must match (C2)")
+    fr.add_argument("--config", type=Path, default=Path("config.yaml"))
     return ap
 
 
@@ -71,9 +80,6 @@ def _triage(args: argparse.Namespace) -> int:
         config = load_config(args.config)
     except ConfigError as exc:
         print(f"fraud triage: {exc}", file=sys.stderr)
-        return 2
-    if not args.dry_run:
-        print("fraud triage: live runs arrive in A2.5; use --dry-run", file=sys.stderr)
         return 2
     n = args.alerts
     if n is None:
@@ -103,7 +109,8 @@ def _triage(args: argparse.Namespace) -> int:
     for m in (config.stage1.model, config.stage2.model):
         check_price(prices[m])  # a bad price is a config error (exit 2), not "$nan"
     est = estimate_run(n, prices, config)
-    print(f"dry run: {args.split}, {n} alerts, provider {config.provider}")
+    mode = "dry run" if args.dry_run else "plan"
+    print(f"{mode}: {args.split}, {n} alerts, provider {config.provider}")
     for line in dry_run_lines(est, config):
         print(line)
     if est.total_usd > config.max_cost_usd:
@@ -113,6 +120,105 @@ def _triage(args: argparse.Namespace) -> int:
             file=sys.stderr,
         )
         return 2
+    if args.dry_run:
+        return 0
+    return _triage_live(args, config, prices, n, est.total_usd)
+
+
+def _triage_live(
+    args: argparse.Namespace, config: Any, prices: dict[str, Any], n: int, estimate: float
+) -> int:
+    import asyncio
+
+    from fraudreview import run, stages
+    from fraudreview.cache import Store
+    from fraudreview.cost import SpendCap
+    from fraudreview.ledger import LEDGER, append_spend
+    from fraudreview.llm import make_client
+    from fraudreview.policy import load_policy
+
+    policy = load_policy()
+    current = run.freeze_record(config, policy)
+    if args.split == "eval":
+        problems = run.freeze_problems(ROOT / run.FREEZE, current)
+        if problems:
+            print("fraud triage: the eval run must match the freeze (C2):", file=sys.stderr)
+            for p in problems:
+                print(f"  {p}", file=sys.stderr)
+            return 2
+    load_env_file(Path(".env"))
+    cases = run.load_cases(args.cases, args.split, n)
+    ctx = stages.Context(
+        config=config,
+        policy=policy,
+        client=make_client(config),
+        store=Store(args.store),
+        cap=SpendCap(config.max_cost_usd),
+        prices=prices,
+    )
+    run_id = f"{args.split}-{len(cases)}-{current['digest'][:8]}"
+
+    def progress(done: int, total: int, spent: float) -> None:
+        print(f"  {done}/{total} alerts, ${spent:.4f} billed", file=sys.stderr, flush=True)
+
+    result = None
+    try:
+        result = asyncio.run(
+            run.run_triage(cases, ctx, args.out / run_id, run_id, progress=progress)
+        )
+    finally:  # one ledger line for whatever this run billed, even if it raised
+        append_spend(
+            ROOT / LEDGER,
+            run_id=run_id,
+            provider=config.provider,
+            split=args.split,
+            calls=result.billed_calls if result else 0,
+            estimate_usd=estimate,
+            actual_usd=ctx.cap.actual,
+            note=None if result else "the run raised before finishing; calls not counted",
+        )
+    assert result is not None  # run_triage returned (an exception would have propagated)
+    finals = [t.disposition.final for t in result.triaged]
+    print(
+        f"{run_id}: {len(result.triaged)}/{len(cases)} alerts, "
+        f"{finals.count('auto_cleared')} auto-cleared, {finals.count('hold')} held, "
+        f"{finals.count('escalate')} escalated; ${result.billed_usd:.4f} billed "
+        f"({result.billed_calls} calls) -> {args.out / run_id}"
+    )
+    if result.stopped == "cap":
+        print("fraud triage: stopped at the spend cap; rerun to resume", file=sys.stderr)
+        return 3
+    labels = args.cases / f"truth_{args.split}.jsonl"
+    if args.split == "dev" and labels.is_file():  # RUN-02: log every dev run with its result
+        line = run.dev_log_line(result, labels, config)
+        log = ROOT / "docs" / "measurements" / "dev-runs.jsonl"
+        with log.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(line, sort_keys=True) + "\n")
+        print(
+            f"dev result: leakage {line['leakage']['k']}/{line['leakage']['n']} frauds, "
+            f"auto-clear {line['auto_clear_rate']['k']}/{line['n']} -> {log}"
+        )
+    if args.record_golden:
+        run.record_golden(result, cases, ctx, labels, args.record_golden)
+        print(f"golden fixture -> {args.record_golden}")
+    return 0
+
+
+def _freeze(args: argparse.Namespace) -> int:
+    from fraudreview import run
+    from fraudreview.config import ConfigError, load_config
+    from fraudreview.policy import load_policy
+
+    try:
+        config = load_config(args.config)
+    except ConfigError as exc:
+        print(f"fraud freeze: {exc}", file=sys.stderr)
+        return 2
+    record = run.freeze_record(config, load_policy())
+    path = ROOT / run.FREEZE
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    print(f"frozen {record['digest']} -> {path}")
     return 0
 
 
@@ -291,6 +397,8 @@ def _dispatch(argv: list[str] | None) -> int:
         return _doctor(args)
     if args.command == "triage":
         return _triage(args)
+    if args.command == "freeze":
+        return _freeze(args)
     parser.print_help()
     return 0
 
