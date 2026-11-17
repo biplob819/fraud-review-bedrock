@@ -200,6 +200,13 @@ _MERCH_TRUE = re.compile(
     r"|\bnever (?:been )?(?:used|seen|shopped)\b[^.;,]{0,25}\bmerchant\b"
     r"|\bmerchant_first_seen\s*(?:is|=|:)?\s*true\b"
 )
+_MERCHANT_WORD = re.compile(r"\bmerchant\b", re.I)
+_NOVELTY = re.compile(
+    r"\bbrand[- ]new\b|\bfirst[- ]time\b|\bnever (?:used|seen|shopped|bought)\b"
+    r"|\bnewly\b|\bunfamiliar\b|\bnew to the card\b|\bpreviously (?:used|seen)\b"
+    r"|\bnot (?:used|seen|shopped)\b|\bnew\b",
+    re.I,
+)
 _MERCH_FALSE = re.compile(
     r"\bknown merchant\b|\bmerchant is known\b|\bknown to the card\b|\bnot new\b"
     r"|\bfamiliar merchant\b|\bmerchant is familiar\b"
@@ -393,6 +400,7 @@ def _leftover(text: str) -> str:
 def check_reason(reason: str, record: Mapping[str, Any]) -> Outcome:
     """One reason against the flat alert record: verified only when every claim holds."""
     verdicts: list[Outcome] = []
+    merchant_unread = False  # a merchant claim we cannot read, anywhere in the reason
     freq = _truth("category_freq", record)
     for sentence in _SENTENCE.split(_normalise(reason)):
         hypo = bool(_HYPO.search(sentence))
@@ -407,6 +415,14 @@ def check_reason(reason: str, record: Mapping[str, Any]) -> Outcome:
                 found.append(verdict)
             left = _leftover(part)
             unread = unread or bool(_QUAL.search(left))
+            # a merchant claim we did not recognise, in any clause or sentence: never let a true
+            # number beside it verify the reason
+            recognised = bool(_MERCH_TRUE.search(part) or _MERCH_FALSE.search(part))
+            merchant_unread = (
+                merchant_unread
+                or bool(_NOVELTY.search(left))
+                or (bool(_MERCHANT_WORD.search(left)) and not recognised)
+            )
             if _RARE.search(left):  # P6.1: rare means a share below 0.05
                 unread = unread or not (
                     isinstance(freq, float) and freq < 0.05 and not _NEGATION.search(sentence)
@@ -416,6 +432,8 @@ def check_reason(reason: str, record: Mapping[str, Any]) -> Outcome:
         verdicts += found
     if "contradicted" in verdicts:
         return "contradicted"
+    if merchant_unread:
+        return "unverifiable"
     if verdicts and all(v == "verified" for v in verdicts):
         return "verified"
     return "unverifiable"

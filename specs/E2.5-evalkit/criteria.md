@@ -6,7 +6,7 @@
 
 **EVK-02 — structured evidence and value checks**
 - `evidence` gives one sentence per glossary field.
-- `value_check` passes true claims and fails false ones, and `values_true` counts only reasons with a checkable claim.
+- The strict local `valuecheck` verifies true claims, contradicts false ones, and never returns `verified` for a false claim (a seeded mutation test), and `value_shares` counts every reason once.
 
 **EVK-04 — pin**
 - `pyproject.toml` pins EvalKit to the exact v0.3.0 commit, and its public symbols import at that version.

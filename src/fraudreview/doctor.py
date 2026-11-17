@@ -126,7 +126,11 @@ def check_evalkit() -> Check:
     version = getattr(evalkit, "__version__", "?")
     if version != EVALKIT_VERSION:
         return Check("evalkit", "fail", f"version {version}, pinned {EVALKIT_VERSION}")
-    return Check("evalkit", "ok", f"{version}; faithfulness, rule and value scorers import")
+    return Check(
+        "evalkit",
+        "ok",
+        f"{version}; faithfulness, rule scorer, evidence renderer and faithfulness import",
+    )
 
 
 # ---------------------------------------------------------------- online (Bedrock and Claude API)

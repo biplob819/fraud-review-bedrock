@@ -12,10 +12,10 @@ Use EvalKit's project-driven capabilities instead of project-only code (OWNER D-
   - `record(case)`: the flat agent-visible alert.
   - `compliance(decision, case, rules)`: `rule_compliance` with `cited_key="policy_clauses"` and `allow='action == "clear"'` (EVK-01).
   - `evidence(case)`: one sentence per glossary field, via `render_evidence`, for EvalKit `faithfulness` (EVK-02).
-  - `PHRASES` and `values_true`: value checks of numbers and comparisons in reasons, via `value_check` (EVK-02).
+  - `value_shares`: verified, contradicted and unverifiable shares of reasons, from this project's strict `valuecheck` module (D-42), which replaces EvalKit's withdrawn `value_check` until its v0.4.0 (EVK-02).
 - `scripts/evalkit_sample.py` scores a finished run folder offline.
-- `fraud doctor` checks that the pinned EvalKit's public API imports.
+- `fraud doctor` checks that the pinned EvalKit's public API (rule compliance, evidence rendering, faithfulness) imports.
 
 ## Rules
 - EvalKit's `rule_compliance` must agree with our router's rules 2–4 on accept versus refuse, on at least 2,000 seeded alerts including night cases.
-- No published figure uses `value_check` until EvalKit's fixes for true-threshold claims, clock times, quoted rule thresholds, negated `holds` phrases and the scorer's reason bug are in the pinned release. Integration found these and the EvalKit session accepted them for v0.3.0.
+- A false claim must never come back `verified` (D-42): a seeded mutation test over thousands of false variants of true claims must find none, and any merchant claim the checker cannot read makes the reason unverifiable.

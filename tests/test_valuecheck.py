@@ -602,3 +602,20 @@ def test_numbers_in_words_and_unread_comparisons_stop_a_verdict():
     assert check_reason(five, REC) != "verified"
     assert check_reason("Amount is 11.01, which is well above the card's norm", REC) != "verified"
     assert check_reason("Amount is 11.01, twice the limit", REC) != "verified"
+
+
+@pytest.mark.safety
+@pytest.mark.parametrize(
+    "text",
+    [
+        "merchant is brand new, amount 120",
+        "amount is 120, merchant never used before",
+        "first-time merchant, amount 120",
+        "merchant: new, amount 120",
+        "amount is 120 at an unfamiliar merchant",
+        "amount is 120; the card has not used this merchant before",
+    ],
+)
+def test_an_unrecognised_merchant_claim_beside_a_true_number_is_not_verified(text):
+    record = {**REC, "amount": 120.0, "merchant_first_seen": False}
+    assert check_reason(text, record) != "verified"
