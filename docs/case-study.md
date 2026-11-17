@@ -8,7 +8,7 @@ The safety bar is zero fraud auto-cleared. The first frozen evaluation failed it
 
 ## My role
 
-I set the goals and the hard rules. Those were zero fraud leakage, a spend cap with my approval for any run over five dollars, and evaluation through my own EvalKit harness. I made the calls at each fork: moving from Amazon Bedrock to the Claude API when the AWS project could not enable Claude, the risk ceiling and night rule after the leaks, and approving the over-budget eval run. Claude Code built the code, tests and measurements under a build harness that I ported from EvalKit. That harness uses a graph of nodes with converge gates and fresh-context verifier passes before any node is marked done, and every run is recorded in a public spend ledger.
+I set the goals and the hard rules. Those were zero fraud leakage, a spend cap with my approval for any run over five dollars, and evaluation through my own EvalKit harness. I made the calls at each fork: moving from Amazon Bedrock to the Claude API when the AWS project could not enable Claude, the risk ceiling and night rule after the leaks, and approving the over-budget eval run. Claude Code built the code, tests and measurements, working under a build harness ported from my EvalKit project. That harness uses a graph of nodes with converge gates and fresh-context verifier passes before any node is marked done, and every run is recorded in a public spend ledger.
 
 ## Key decisions
 
