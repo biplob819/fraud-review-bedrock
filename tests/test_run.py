@@ -188,8 +188,6 @@ def test_freeze_digest_moves_with_every_setting_and_eval_refuses_a_change(tmp_pa
 @pytest.mark.contract
 def test_committed_freeze_matches_the_current_settings():
     path = ROOT / run.FREEZE
-    if not path.exists():
-        pytest.skip("no freeze yet")
     assert run.freeze_problems(path, run.freeze_record(CONFIG, load_policy())) == []
 
 
@@ -259,8 +257,6 @@ def replay(golden: Path) -> list[dict[str, Any]]:
 @pytest.mark.golden
 def test_golden_replay_reproduces_the_recorded_dispositions():
     golden = ROOT / run.GOLDEN
-    if not (golden / "expected.json").exists():
-        pytest.skip("no golden fixture yet")
     expected = json.loads((golden / "expected.json").read_text(encoding="utf-8"))
     assert expected["freeze"] == run.freeze_record(CONFIG, load_policy())  # same settings
     assert replay(golden) == expected["dispositions"]
