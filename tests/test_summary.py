@@ -152,3 +152,20 @@ def test_the_v1_summary_fixture_stays_byte_identical():
     s = RunSummary.model_validate_json(text)
     assert s.model_dump_json(indent=2) + "\n" == text
     assert "alarms" not in text and "value_shares" not in text
+
+
+@pytest.mark.safety
+def test_a_faithfulness_figure_without_notes_is_refused_and_notes_match_the_cache_summary():
+    from fraudreview.summary_model import FaithfulnessDetail
+
+    cache = json.loads(
+        (ROOT / "docs" / "measurements" / "faithfulness-cache-summary.json").read_text("utf-8")
+    )
+    s = summary.read_summary(ROOT / "docs" / "measurements" / "summary-eval2.json")
+    detail = s.explanation.faithfulness_detail
+    assert detail is not None and list(detail.notes) == cache["notes"]  # none dropped on the way
+    body = detail.model_dump(mode="json")
+    body["notes"] = ()
+    for partial in (True, False):  # a complete figure needs its caveats too
+        with pytest.raises(ValueError, match="must carry its notes"):
+            FaithfulnessDetail.model_validate({**body, "partial": partial}, strict=False)

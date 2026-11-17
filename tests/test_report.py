@@ -220,3 +220,8 @@ def test_workflow_actions_are_pinned_and_the_official_pages_ones(workflow):
 def test_workflow_builds_from_the_committed_summary_with_fraud_report(workflow):
     runs = " ".join(str(s.get("run", "")) for s in workflow["jobs"]["build"]["steps"])
     assert "fraud report" in runs and "docs/measurements/summary-eval2.json" in runs
+
+
+def test_the_recall_tile_says_it_is_among_alerts_the_baseline_raised():
+    html = (ROOT / "docs" / "dashboard.html").read_text(encoding="utf-8")
+    assert "among alerts the baseline raised" in html
