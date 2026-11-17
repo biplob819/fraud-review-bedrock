@@ -26,7 +26,7 @@ from fraudreview.router import guard_request
 from fraudreview.schemas import Stage1Output, Stage2Output, Tokens, TriageDecision
 
 ErrorKind = Literal["schema", "refusal", "transport"]
-CODE_VERSION = "6"  # the `model_call` step; bump with any change to this module (BRK-03)
+CODE_VERSION = "7"  # the `model_call` step; bump with any change to this module (BRK-03)
 MAX_TRANSPORT_ATTEMPTS = 6  # §2.4
 MAX_SCHEMA_ATTEMPTS = 2  # one retry, same prompt (FR7)
 BACKOFF_BASE_S = 1.0
@@ -368,7 +368,8 @@ def worst_case_cost(body: dict[str, Any], price: dict[str, float]) -> float:
 
     chars = len(json.dumps(body))  # ASCII escapes: a rare character counts as 6, not 1
     per_attempt = (
-        chars * max(price["input"], price["cache_write_5m"]) + body["max_tokens"] * price["output"]
+        chars * max(price["input"], price["cache_write_5m"], price["cache_read"])
+        + body["max_tokens"] * price["output"]
     )
     return MAX_SCHEMA_ATTEMPTS * per_attempt / 1e6
 

@@ -1,6 +1,6 @@
 # N1.3 run state
 
-**Now:** building
+**Now:** green
 
 ## History
 - 2026-11-17 — started after W0.2 went green.
@@ -14,6 +14,7 @@
 - 2026-11-17 — verifier pass 7: two must-fix (the SDK's client-side refusal of large `max_output_tokens` crashed instead of exit 2; no test proved `fraud doctor`'s sends are guarded). Fixed: config caps `max_output_tokens` at 16,000 and the SDK's refusal maps to a config error; a doctor safety test spies on the guard for all three sends and shows a refused body never leaves. Should-fix applied: usage above what the body or `max_tokens` allows is unreadable (priced at the worst case, so a reply cannot claim phantom spend), a malformed doctor smoke reply warns instead of crashing, doctor's clients have SDK retries off. `model_call` is at code_version 5.
 - 2026-11-17 — verifier pass 8: one must-fix (a NaN or negative price let a billed call through and then failed its settlement). Fixed: `settled_call` checks every price is finite and non-negative before reserving or sending (exit 2), and a non-finite bill falls back to the reservation. Should-fix applied: the doctor guard test also shows a refused body never leaves the structured call or cache pair, and `fraud doctor --record` writes its own ledger line. Still open (allowed by the criteria): a failure before any send records the whole reservation. `model_call` is at code_version 6.
 - 2026-11-17 — verifier pass 9: one must-fix, in the pass-8 should-fix that made `fraud doctor --record` write a ledger line from unchecked doctor usage (phantom spend, crash on negative usage, lost spend on a mid-run failure). Reverted that addition: doctor's spend stays recorded by hand with a note, as for W0.2. Should-fix applied: the dry run and the live script check prices before any arithmetic (exit 2, never `$nan`).
+- 2026-11-17 — verifier pass 10: no must-fix. Should-fix applied: a missing or malformed prices file exits 2 in the dry run; the worst case prices input at the dearest of input, cache read and cache write. `model_call` is at code_version 7. Green.
 
 ## Open should-fix (carried forward)
 - From N1.2: route every request through `guard_request` (done here by design).

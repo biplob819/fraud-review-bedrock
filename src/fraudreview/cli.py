@@ -87,7 +87,11 @@ def _triage(args: argparse.Namespace) -> int:
     if n < 1:
         print("fraud triage: --alerts must be at least 1", file=sys.stderr)
         return 2
-    prices = price_table(args.prices, config.provider)
+    try:
+        prices = price_table(args.prices, config.provider)
+    except (OSError, AttributeError, TypeError, ValueError) as exc:  # missing or malformed file
+        print(f"fraud triage: cannot read {args.prices} ({type(exc).__name__})", file=sys.stderr)
+        return 2
     missing = [m for m in (config.stage1.model, config.stage2.model) if m not in prices]
     if missing:
         print(
