@@ -305,7 +305,13 @@ def _tool_gate(cmd: list[str], root: Path, label: str) -> Result:
 
 
 def gate_ruff(ctx: Ctx) -> Result:
-    return _tool_gate([sys.executable, "-m", "ruff", "check", "."], ctx.root, "ruff clean")
+    """Lint and formatting, as CI runs them: a file CI would reformat fails here too."""
+    lint = _tool_gate([sys.executable, "-m", "ruff", "check", "."], ctx.root, "ruff clean")
+    if lint.status != "PASS":
+        return lint
+    return _tool_gate(
+        [sys.executable, "-m", "ruff", "format", "--check", "."], ctx.root, "ruff format clean"
+    )
 
 
 def gate_pyright(ctx: Ctx) -> Result:
