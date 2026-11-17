@@ -100,6 +100,8 @@ def test_no_font_below_minimum() -> None:
     assert min(sizes) >= MIN_PX, f"font-size {min(sizes)}px is below {MIN_PX}px"
     text = SVG.read_text(encoding="utf-8")
     assert not FONT_OTHER_UNIT.findall(text), "font sizes must be in px so they can be checked"
+    assert not re.search(r"font-size\s*[:=]\s*\"?\s*[a-z]", text), "keyword font sizes"
+    assert "scale(" not in text, "no scaling transforms: sizes must be what they say"
 
 
 @pytest.mark.contract
@@ -130,12 +132,15 @@ BOX_KIND = {
     "Analyst queue app": "proposed",
     "Amazon CloudWatch": "proposed",
     "AWS KMS": "proposed",
+    "Amazon DynamoDB": "proposed",
+    "Amazon DynamoDB (demo)": "proposed",
 }
 INSIDE_BOUNDARY = (
     "Amazon S3",
     "Amazon EventBridge",
     "AWS Step Functions",
     "Amazon S3 with Object Lock",
+    "Amazon DynamoDB",
 )
 
 
@@ -154,10 +159,9 @@ def _headings(root: ET.Element) -> dict[str, tuple[float, float]]:
     found: dict[str, tuple[float, float]] = {}
     for t in root.iter(f"{NS}text"):
         if "h" in (t.get("class") or "").split():
-            found.setdefault(
-                " ".join("".join(t.itertext()).split()),
-                (float(t.get("x", 0)), float(t.get("y", 0))),
-            )
+            name = " ".join("".join(t.itertext()).split())
+            assert name not in found, f"two boxes are both titled {name!r}; titles must differ"
+            found[name] = (float(t.get("x", 0)), float(t.get("y", 0)))
     return found
 
 

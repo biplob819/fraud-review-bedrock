@@ -73,7 +73,7 @@
   <text x="506" y="196" class="s">Haiku 5.5 and Sonnet 5.5 ids</text>
   <text x="506" y="224" class="note">supported, not run (D-27, D-34)</text>
   <path d="M400 168 H486" class="dash"/>
-  <text x="434" y="156" class="note" text-anchor="middle">optional</text>
+  <text x="445" y="156" class="note" text-anchor="middle">optional</text>
 
   <!-- proposed: hosted demo -->
   <rect x="840" y="134" width="250" height="122" class="box eval"/>
@@ -84,7 +84,7 @@
   <text x="856" y="242" class="note">proposed (D-31)</text>
 
   <rect x="1120" y="134" width="220" height="122" class="box eval"/>
-  <text x="1136" y="158" class="h">Amazon DynamoDB</text>
+  <text x="1136" y="158" class="h">Amazon DynamoDB (demo)</text>
   <text x="1136" y="178" class="s">demo passkeys and</text>
   <text x="1136" y="196" class="s">spend ledger</text>
   <text x="1136" y="242" class="note">proposed (D-31)</text>
