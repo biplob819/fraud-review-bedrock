@@ -1,4 +1,4 @@
-"""E2.5 sample: EvalKit rule compliance and value checks over a finished run, with no model call.
+"""E2.5 sample: EvalKit rule compliance and the strict value check over a run (no model call).
 
 Reads `<run>/decisions.jsonl` and the matching cases file; prints counts and rates as JSON (no
 alert or request id). Writes nothing unless an output path is given.
@@ -9,7 +9,6 @@ alert or request id). Writes nothing unless an output path is given.
 from __future__ import annotations
 
 import json
-import re
 import sys
 from collections import Counter
 from pathlib import Path
@@ -18,8 +17,6 @@ from typing import Any
 from fraudreview import evalkit_bridge as b
 from fraudreview.policy import load_policy
 from fraudreview.schemas import AlertCase, Rate, TriageDecision
-
-_ID = re.compile(r"a-[0-9a-f]{16}")
 
 
 def _rate(r: Rate) -> dict[str, Any]:
@@ -61,19 +58,18 @@ def summarise(run: Path, cases_path: Path) -> dict[str, Any]:
         tally[f"{kind}_compliant"] += result.value == 1.0
         for r in result.details["reasons"]:
             reasons[f"{kind}:{r}"] += 1
-    rate, total, failed = b.values_detail(decisions, cases)
-    phrase_rate, _, _ = b.values_detail(decisions, cases, phrases_only=True)
-    failed_kinds = Counter(_ID.sub("<id>", f.lower()) for f in failed)
+    values = b.value_shares(decisions, cases)
     return {
         "decisions": len(decisions),
         "alerts": len(wanted),
         "compliance": {k: dict(v) for k, v in sorted(per_stage.items())},
         "compliance_reasons": dict(reasons.most_common()),
-        "values_true": _rate(rate),
-        "reasons_total": total,
-        "reasons_checkable": rate.n,
-        "values_true_phrases_only": _rate(phrase_rate),
-        "failed_check_texts_top": dict(failed_kinds.most_common(15)),
+        "reasons_total": values["n"],
+        "values_verified": values["verified"],
+        "values_contradicted": values["contradicted"],
+        "values_unverifiable": values["unverifiable"],
+        "values_verified_share": _rate(values["verified_share"]),
+        "values_contradicted_share": _rate(values["contradicted_share"]),
     }
 
 

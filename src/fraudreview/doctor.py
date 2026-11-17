@@ -119,7 +119,7 @@ def check_kaggle(auth: Callable[[], str | None] | None = None) -> Check:
 def check_evalkit() -> Check:
     try:
         import evalkit
-        from evalkit.scorers import rule_compliance, value_check  # noqa: F401  (B5.13, E2.5)
+        from evalkit.scorers import rule_compliance  # noqa: F401  (B5.13, E2.5)
         from evalkit.scorers.faithfulness import FaithfulnessItem, faithfulness  # noqa: F401
     except ImportError as exc:
         return Check("evalkit", "fail", f"not importable ({exc.name})")
