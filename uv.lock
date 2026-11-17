@@ -152,7 +152,7 @@ wheels = [
 [[package]]
 name = "evalkit-harness"
 version = "0.2.0"
-source = { git = "https://github.com/biplob819/evalkit?rev=43df77edb8efb07d6f168fc0f8b8544ec86e3aca#43df77edb8efb07d6f168fc0f8b8544ec86e3aca" }
+source = { git = "https://github.com/biplob819/evalkit?rev=add5af9b8af3bc8482f1408aa1206edd6340bfbe#add5af9b8af3bc8482f1408aa1206edd6340bfbe" }
 dependencies = [
     { name = "pydantic" },
     { name = "pyyaml" },
@@ -189,7 +189,7 @@ dev = [
 requires-dist = [
     { name = "anthropic", extras = ["bedrock"], specifier = ">=1" },
     { name = "botocore", extras = ["crt"], specifier = ">=1.44.3" },
-    { name = "evalkit-harness", git = "https://github.com/biplob819/evalkit?rev=43df77edb8efb07d6f168fc0f8b8544ec86e3aca" },
+    { name = "evalkit-harness", git = "https://github.com/biplob819/evalkit?rev=add5af9b8af3bc8482f1408aa1206edd6340bfbe" },
     { name = "lightgbm", specifier = ">=4" },
     { name = "markdown-it-py", specifier = ">=3" },
     { name = "numpy", specifier = ">=1.26" },
