@@ -244,10 +244,15 @@
       "prompts": "2",
       "stages": "5"
     },
-    "digest": "7fec65d1345a9219",
+    "digest": "6b50fb21f0c1e8de",
     "efforts": {
       "stage1": "medium",
       "stage2": "high"
+    },
+    "logic_sources": {
+      "policy": "6e9d996a5235f3bf",
+      "router": "8033602a6e5ae656",
+      "schemas": "eeb8dbcc2bc746e8"
     },
     "max_output_tokens": {
       "stage1": 4096,

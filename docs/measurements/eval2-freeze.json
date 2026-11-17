@@ -1,0 +1,31 @@
+{
+  "code_versions": {
+    "model_call": "7",
+    "prompts": "2",
+    "stages": "5"
+  },
+  "digest": "7fec65d1345a9219",
+  "efforts": {
+    "stage1": "medium",
+    "stage2": "high"
+  },
+  "max_output_tokens": {
+    "stage1": 4096,
+    "stage2": 8192
+  },
+  "models": {
+    "stage1": "claude-haiku-5-5",
+    "stage2": "claude-sonnet-5-5"
+  },
+  "policy_version": "e70e3b7418b98c3e",
+  "prompt_hashes": {
+    "stage1": "d51978c68f5c1237",
+    "stage2": "d4e22c2c5e075303"
+  },
+  "provider": "anthropic",
+  "router": {
+    "clear_ceiling": 0.045,
+    "clear_min_confidence": 0.7
+  },
+  "seed": 20261115
+}

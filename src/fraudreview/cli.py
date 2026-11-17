@@ -115,26 +115,11 @@ def _triage(args: argparse.Namespace) -> int:
         check_price(prices[m])  # a bad price is a config error (exit 2), not "$nan"
     assumptions = None
     if args.plan_from:
-        from fraudreview.cost import assumptions_from
-        from fraudreview.schemas import Disposition, TriageDecision
-
-        folder = args.plan_from
-        decs = [
-            TriageDecision.model_validate_json(x)
-            for x in (folder / "decisions.jsonl").read_text(encoding="utf-8").splitlines()
-            if x.strip()
-        ]
-        n_run = sum(
-            1
-            for x in (folder / "dispositions.jsonl").read_text(encoding="utf-8").splitlines()
-            if x.strip() and Disposition.model_validate_json(x)
-        )
-        live = [d for d in decs if not d.cache_hit]
-        assumptions = assumptions_from(
-            [d.tokens for d in live], [d.stage for d in live], max(1, n_run)
-        )
-        if not live:
-            raise ValueError("the plan-from run has no live calls")
+        problem = _plan_problem(args.plan_from, config)
+        if isinstance(problem, str):
+            print(f"fraud triage: --plan-from {args.plan_from}: {problem}", file=sys.stderr)
+            return 2
+        assumptions = problem
     est = estimate_run(n, prices, config, assumptions)
     mode = "dry run" if args.dry_run else "plan"
     print(f"{mode}: {args.split}, {n} alerts, provider {config.provider}")
@@ -150,6 +135,37 @@ def _triage(args: argparse.Namespace) -> int:
     if args.dry_run:
         return 0
     return _triage_live(args, config, prices, n, est.total_usd)
+
+
+def _plan_problem(folder: Path, config: Any) -> Any:
+    """Planning tokens from a finished run made under the current settings, or why not."""
+    from fraudreview import run
+    from fraudreview.cost import assumptions_from
+    from fraudreview.policy import load_policy
+    from fraudreview.schemas import TriageDecision
+
+    try:
+        facts = json.loads((folder / "run.json").read_text(encoding="utf-8"))
+        decs = [
+            TriageDecision.model_validate_json(x)
+            for x in (folder / "decisions.jsonl").read_text(encoding="utf-8").splitlines()
+            if x.strip()
+        ]
+    except (OSError, ValueError) as exc:
+        return f"not a finished run ({type(exc).__name__})"
+    current = run.freeze_record(config, load_policy())
+    if facts.get("freeze", {}).get("digest") != current["digest"]:
+        return "that run used other settings; plan from a run made under the current ones"
+    live = [d for d in decs if not d.cache_hit]
+    n_alerts = facts.get("n_done", 0)
+    if not any(d.stage == 1 for d in live) or n_alerts < 1:
+        return "that run has no live stage-1 calls to plan from"
+    return assumptions_from(
+        [d.tokens for d in live],
+        [d.stage for d in live],
+        n_alerts,
+        stage2_reached=sum(1 for d in decs if d.stage == 2),
+    )
 
 
 def _triage_live(

@@ -1,13 +1,15 @@
 """Batch triage (A2.5, Tech Spec §2.1, §5, C2, E2, NFR3, US1).
 
 `run_triage` triages a list of alerts with at most `concurrency` in flight. It writes
-`results/<run_id>/` from one place after the workers finish (workers never write files):
+`results/<run_id>/` from one place after the workers finish (workers write only cache entries,
+never the run folder):
 `decisions.jsonl`, `dispositions.jsonl`, a hash-chained `audit.jsonl` and `run.json`. A rerun is
 the resume: finished calls come back from the cache at no cost. The spend cap stops scheduling
 (exit 3) and the work already done stays cached.
 
-`freeze_record` names everything that decides a run's behaviour (prompt hashes, policy version,
-models, efforts, output limits, router settings, provider and code versions). `fraud freeze`
+`freeze_record` names everything that decides a run's behaviour: prompt hashes, policy version,
+models, efforts, output limits, router settings, provider, code versions, and source hashes of
+the router, the clause evaluator and the record validators. `fraud freeze`
 writes it to `docs/measurements/freeze.json`; an eval run refuses if anything has changed since
 (C2, Tech Spec §5 step 1).
 """
@@ -24,8 +26,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from fraudreview import llm, prompts, stages
+from fraudreview import llm, prompts, router, schemas, stages
+from fraudreview import policy as policy_module
 from fraudreview.audit import AuditLog
+from fraudreview.cache import source_hash
 from fraudreview.config import RunConfig
 from fraudreview.cost import CapReached
 from fraudreview.policy import Policy
@@ -61,6 +65,13 @@ def freeze_record(config: RunConfig, policy: Policy) -> dict[str, Any]:
             "model_call": llm.CODE_VERSION,
             "stages": stages.STAGE_CODE_VERSION,
             "prompts": prompts.PROMPTS_CODE_VERSION,
+        },
+        # the code that turns replies into dispositions: router rules, the clause evaluator
+        # and the record validators (their sources, since they carry no version of their own)
+        "logic_sources": {
+            "router": source_hash(router)[:16],
+            "policy": source_hash(policy_module)[:16],
+            "schemas": source_hash(schemas)[:16],
         },
     }
     record["digest"] = digest(record)
@@ -104,6 +115,7 @@ class RunResult:
     stopped: str | None = None  # "cap" when the spend cap stopped scheduling
     billed_usd: float = 0.0
     billed_calls: int = 0
+    cases_sha256: str = ""  # identity of the alert sample this run triaged
 
 
 async def run_triage(
@@ -137,6 +149,9 @@ async def run_triage(
 
     await asyncio.gather(*(one(i, c) for i, c in enumerate(cases)))
     result = RunResult(run_id=run_id, out_dir=out_dir, n_total=len(cases))
+    result.cases_sha256 = hashlib.sha256(
+        "".join(c.model_dump_json() + "\n" for c in cases).encode("utf-8")
+    ).hexdigest()
     result.triaged = [t for t in done if t is not None]
     result.stopped = "cap" if stop.is_set() else None
     result.billed_usd = ctx.cap.actual
@@ -179,6 +194,7 @@ def write_run(result: RunResult, ctx: stages.Context) -> None:
         "audit_head": {"seq": seq, "hash": head},
         "freeze": freeze_record(ctx.config, ctx.policy),
         "errors": stages.error_counts(decisions),
+        "cases_sha256": result.cases_sha256,
         "finished_at": now.isoformat(timespec="seconds"),
     }
     (out / "run.json").write_text(json.dumps(record, indent=2, sort_keys=True) + "\n", "utf-8")

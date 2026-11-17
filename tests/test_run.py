@@ -151,6 +151,29 @@ def test_cli_exit_codes_for_cap_and_eval_without_freeze(tmp_path, monkeypatch, c
     assert json.loads(ledger.splitlines()[-1])["calls"] == 12
     assert cli.main([*base, "--split", "eval"]) == 2  # nothing frozen
     assert "nothing is frozen" in capsys.readouterr().err
+    # RUN-02: with labels present, a dev run appends its result to dev-runs.jsonl
+    rows = [{"alert_id": c.alert_id, "label": i == 0, "shap_top5": []} for i, c in enumerate(CASES)]
+    (cases_dir / "truth_dev.jsonl").write_text(
+        "".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8"
+    )
+    assert cli.main([*base, "--split", "dev"]) == 0
+    dev_log = (tmp_path / "docs" / "measurements" / "dev-runs.jsonl").read_text(encoding="utf-8")
+    line = json.loads(dev_log.splitlines()[-1])
+    assert line["n"] == 6 and line["frauds"] == 1 and line["leakage"]["k"] == 0
+    # RUN-01: the spend cap stops a live run with exit 3 (the estimate is made to fit)
+    from fraudreview import cost
+
+    tiny = tmp_path / "tiny.yaml"
+    tiny.write_text(
+        (ROOT / "config.yaml")
+        .read_text(encoding="utf-8")
+        .replace("max_cost_usd: 5 ", "max_cost_usd: 0.02 "),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(cost, "estimate_run", lambda *a, **k: cost.Estimate(1, 1, 0, 0.0, 0.0))
+    capped = [*base, "--config", str(tiny), "--store", str(tmp_path / "store2")]
+    assert cli.main([*capped, "--split", "dev"]) == 3
+    assert "spend cap" in capsys.readouterr().err
 
 
 # ------------------------------------------------------------------ RUN-03 freeze
@@ -272,13 +295,44 @@ def test_planning_tokens_come_from_a_finished_runs_live_calls():
 
     t1 = Tokens(input=100, output=300, cache_read=1500, cache_write=0)
     t2 = Tokens(input=120, output=900, cache_read=1600, cache_write=0)
-    a = assumptions_from([t1, t1, t2], [1, 1, 2], n_alerts=2)
+    a = assumptions_from([t1, t1, t2], [1, 1, 2], n_alerts=2, stage2_reached=1)
     assert a.stage1_out == 300 and a.stage2_out == 900 and a.stage2_share == 0.5
     assert a.cached_prefix == round((1500 * 2 + 1600) / 3)
     est = estimate_run(10, PRICES, CONFIG, a)
     assert est.stage2_calls == 5 and est.total_usd > 0
     with pytest.raises(ValueError):
-        assumptions_from([], [], n_alerts=0)
+        assumptions_from([], [], n_alerts=0, stage2_reached=0)
+
+
+def test_plan_from_refuses_other_settings_and_counts_cached_stage2(tmp_path):
+    from fraudreview import cli
+
+    cx = context(tmp_path, Slow())
+    go(CASES, cx, tmp_path / "r")
+    plan = cli._plan_problem(tmp_path / "r", cx.config)
+    assert not isinstance(plan, str) and plan.stage2_share == 1.0
+    again = go(CASES, cx, tmp_path / "r2")  # all cached: no live calls to plan from
+    assert again.billed_calls == 0
+    assert "no live stage-1 calls" in cli._plan_problem(tmp_path / "r2", cx.config)
+    other = cx.config.model_copy(update={"seed": cx.config.seed + 1})
+    assert "other settings" in cli._plan_problem(tmp_path / "r", other)
+    assert "not a finished run" in cli._plan_problem(tmp_path / "missing", cx.config)
+
+
+@pytest.mark.contract
+def test_committed_dev_runs_log_every_dev_result():
+    rows = [
+        json.loads(x)
+        for x in (ROOT / "docs" / "measurements" / "dev-runs.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if x
+    ]
+    assert rows and rows[0]["leakage"]["k"] == 2  # the first dev run's leak stays logged
+    full = [r for r in rows if r["n"] == 100]
+    assert full[-1]["leakage"]["k"] == 0
+    for r in rows:
+        assert r["leakage"]["n"] == r["frauds"] and r["digest"] in r["run_id"]
 
 
 # ------------------------------------------------------------------ RUN-04 eval runs
@@ -302,9 +356,15 @@ def test_committed_eval_runs_are_logged_honestly():
             r["queue_mix"]["hold"] + r["queue_mix"]["escalate"] + r["auto_clear_rate"]["k"] == 500
         )
     assert rows[0]["leakage_bar_met"] is False and rows[1]["leakage_bar_met"] is True
-    assert (
-        rows[1]["digest"] == json.loads((ROOT / run.FREEZE).read_text(encoding="utf-8"))["digest"]
+    frozen = json.loads((ROOT / run.FREEZE).read_text(encoding="utf-8"))
+    eval2_facts = json.loads(
+        (ROOT / "docs" / "measurements" / "eval2-freeze.json").read_text(encoding="utf-8")
     )
+    assert eval2_facts["digest"] == rows[1]["digest"]
+    # the freeze later grew source hashes (logic_sources); every setting eval2 ran under is
+    # still the frozen one
+    shared = [k for k in eval2_facts if k != "digest"]
+    assert {k: frozen[k] for k in shared} == {k: eval2_facts[k] for k in shared}
     ledger = (ROOT / "docs" / "measurements" / "spend-ledger.jsonl").read_text(encoding="utf-8")
     for r in rows:
         line = [json.loads(x) for x in ledger.splitlines() if r["run_id"] in x][-1]

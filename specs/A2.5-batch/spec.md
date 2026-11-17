@@ -20,6 +20,6 @@ Run the agent over the dev and eval samples with progress, running cost, the spe
 - The 500-alert eval run (RUN-04) needs the owner's approval first. Its estimate (~$6.68) is over the $5 rule and over `max_cost_usd`.
 
 ## Rules
-- Workers never write files; one writer does after the run.
+- Workers write only cache entries; one writer writes the run folder after the run.
 - A rerun after a cap stop reuses every finished call from the cache.
 - The golden replay runs with no client: any model call fails it.
