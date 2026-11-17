@@ -3,3 +3,5 @@
 README.md
 DATA_CARD.md
 docs/case-study.md
+docs/dashboard.html
+docs/measurements/summary-eval2.json

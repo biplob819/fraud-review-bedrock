@@ -1,0 +1,24 @@
+{
+  "data_label": "simulated",
+  "note": "The summary block of results/baseline/baseline.json (the LightGBM baseline at the D-9 threshold), committed so a summary can be built without the results folder.",
+  "summary": {
+    "alert_rate_test": 0.027611076821199204,
+    "precision_test": {
+      "hi": 0.1409330535826223,
+      "k": 2078,
+      "lo": 0.13010450371700402,
+      "n": 15344,
+      "point": 0.13542752867570385
+    },
+    "precision_val": 0.2027320426994753,
+    "recall_test": {
+      "hi": 0.975329084092521,
+      "k": 2078,
+      "lo": 0.9605240435289356,
+      "n": 2145,
+      "point": 0.9687645687645687
+    },
+    "recall_val": 0.9803149606299213,
+    "threshold": 0.0033964092120351706
+  }
+}

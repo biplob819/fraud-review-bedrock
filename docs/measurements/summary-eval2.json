@@ -1,0 +1,300 @@
+{
+  "schema_version": "1.0",
+  "run_id": "eval2-500-7fec65d1",
+  "split": "eval",
+  "data_label": "simulated",
+  "n_alerts": 500,
+  "n_frauds": 55,
+  "policy_version": "e70e3b7418b98c3e",
+  "prompt_hashes": {
+    "stage1": "d51978c68f5c1237",
+    "stage2": "d4e22c2c5e075303"
+  },
+  "models": {
+    "stage1": "claude-haiku-5-5",
+    "stage2": "claude-sonnet-5-5"
+  },
+  "provider": "anthropic",
+  "baseline": {
+    "threshold": 0.0033964092120351706,
+    "recall_val": 0.9803149606299213,
+    "precision_val": 0.2027320426994753,
+    "recall_test": {
+      "k": 2078,
+      "n": 2145,
+      "point": 0.9687645687645687,
+      "lo": 0.9605240435289356,
+      "hi": 0.975329084092521
+    },
+    "precision_test": {
+      "k": 2078,
+      "n": 15344,
+      "point": 0.13542752867570385,
+      "lo": 0.13010450371700402,
+      "hi": 0.1409330535826223
+    },
+    "alert_rate_test": 0.027611076821199204
+  },
+  "leakage": {
+    "k": 0,
+    "n": 55,
+    "point": 0.0,
+    "lo": 0.0,
+    "hi": 0.0530110549512538
+  },
+  "recall_end_to_end": {
+    "k": 55,
+    "n": 55,
+    "point": 1.0,
+    "lo": 0.9347150988829137,
+    "hi": 1.0
+  },
+  "auto_clear_rate": {
+    "k": 44,
+    "n": 500,
+    "point": 0.088,
+    "lo": 0.06620598447492893,
+    "hi": 0.11607647206539012
+  },
+  "auto_clear_precision": {
+    "k": 44,
+    "n": 44,
+    "point": 1.0,
+    "lo": 0.9197043962415192,
+    "hi": 1.0
+  },
+  "stage1_clear_rate": {
+    "k": 35,
+    "n": 500,
+    "point": 0.07,
+    "lo": 0.0507597429450181,
+    "hi": 0.09579718985191686
+  },
+  "stage2_reach_rate": {
+    "k": 465,
+    "n": 500,
+    "point": 0.93,
+    "lo": 0.9042028101480832,
+    "hi": 0.949240257054982
+  },
+  "queue_mix": {
+    "hold": 54,
+    "escalate": 402
+  },
+  "minutes_saved_per_1000": {
+    "point": 352.0,
+    "lo": 256.0,
+    "hi": 456.0
+  },
+  "cost_per_1000_usd": {
+    "point": 6.24130876,
+    "lo": 6.062691181499999,
+    "hi": 6.4161780859999995
+  },
+  "latency_ms": {
+    "stage1": {
+      "p50": 3079,
+      "p95": 4578
+    },
+    "stage2": {
+      "p50": 5065,
+      "p95": 6881
+    }
+  },
+  "explanation": {
+    "schema_valid": {
+      "k": 964,
+      "n": 965,
+      "point": 0.9989637305699481,
+      "lo": 0.9941536266738807,
+      "hi": 0.9998170495729796
+    },
+    "clauses_valid": {
+      "k": 964,
+      "n": 964,
+      "point": 1.0,
+      "lo": 0.996030900737219,
+      "hi": 1.0
+    },
+    "fields_valid": {
+      "k": 964,
+      "n": 964,
+      "point": 1.0,
+      "lo": 0.996030900737219,
+      "hi": 1.0
+    },
+    "values_true": {
+      "k": 1098,
+      "n": 1098,
+      "point": 1.0,
+      "lo": 0.9965136011266034,
+      "hi": 1.0
+    },
+    "protected_mentions": 0,
+    "driver_agreement": {
+      "point": 0.46236559139784944,
+      "lo": 0.44782334869431645,
+      "hi": 0.47727598566308244
+    },
+    "faithfulness": {
+      "claude-opus-5-5": {
+        "point": 0.4799230584275066,
+        "lo": 0.4648,
+        "hi": 0.4951
+      }
+    },
+    "judge_mode": "single",
+    "mismatch_examples": [
+      "a-67936e7b30b370c9",
+      "a-33e4fc6c05723a9c",
+      "a-3a031f8d084c6aea"
+    ],
+    "driver_agreement_n": 465,
+    "suspicious_no_clear": 8,
+    "value_shares": {
+      "n": 3913,
+      "verified": 1098,
+      "contradicted": 0,
+      "unverifiable": 2815,
+      "verified_share": {
+        "k": 1098,
+        "n": 3913,
+        "point": 0.28060311781242014,
+        "lo": 0.26674611186903635,
+        "hi": 0.29489047259538453
+      },
+      "contradicted_share": {
+        "k": 0,
+        "n": 3913,
+        "point": 0.0,
+        "lo": 0.0,
+        "hi": 0.000980754227885122
+      },
+      "unverifiable_share": {
+        "k": 2815,
+        "n": 3913,
+        "point": 0.7193968821875799,
+        "lo": 0.7051095274046155,
+        "hi": 0.7332538881309638
+      }
+    },
+    "faithfulness_detail": {
+      "partial": true,
+      "notes": [
+        "Single judge only: the second judge (gpt-6.1-sol) produced no verdicts (OWNER D-43).",
+        "Partial: not every extracted claim was judged; coverage is per judge below.",
+        "The evidence sentences round numbers (0.02 for 0.0167), so exact figures read as unsupported.",
+        "Policy statements (for example that a clause forbids clearing) have no policy text among the evidence, so correct policy citations read as unsupported.",
+        "The judge is not calibrated against owner labels (EXP-09 moved out of v0.1.0).",
+        "Claims inside one explanation are not independent, so the claim-level interval is too narrow; the fully-judged explanations are a selected subset (those whose every claim was reached before the cap)."
+      ],
+      "explanations": 458,
+      "claims_extracted": 5551,
+      "judges": {
+        "claude-opus-5-5": {
+          "claims_judged": 4159,
+          "claim_coverage": 0.7492,
+          "claims_supported": {
+            "k": 1996,
+            "n": 4159,
+            "point": 0.4799230584275066,
+            "lo": 0.4648,
+            "hi": 0.4951
+          },
+          "explanations_fully_judged": 342,
+          "explanations_fully_supported": {
+            "k": 0,
+            "n": 342,
+            "point": 0.0,
+            "lo": 0.0,
+            "hi": 0.0111
+          }
+        }
+      }
+    },
+    "mismatch_detail": [
+      {
+        "alert_id": "a-67936e7b30b370c9",
+        "agreement": 0.0,
+        "cited": [
+          "hour",
+          "amt_vs_usual",
+          "category_freq",
+          "merchant_first_seen",
+          "card_history_n",
+          "risk_score"
+        ],
+        "positive_drivers": [
+          "amount",
+          "category"
+        ],
+        "protected_mentions": 0
+      },
+      {
+        "alert_id": "a-33e4fc6c05723a9c",
+        "agreement": 0.14285714285714285,
+        "cited": [
+          "amt_vs_usual",
+          "amount",
+          "category_freq",
+          "category",
+          "risk_score",
+          "card_history_n",
+          "merchant_first_seen",
+          "hour"
+        ],
+        "positive_drivers": [
+          "amount"
+        ],
+        "protected_mentions": 0
+      },
+      {
+        "alert_id": "a-3a031f8d084c6aea",
+        "agreement": 0.14285714285714285,
+        "cited": [
+          "amount",
+          "amt_vs_usual",
+          "merchant_first_seen",
+          "category_freq",
+          "risk_score",
+          "hour",
+          "card_history_n",
+          "category"
+        ],
+        "positive_drivers": [
+          "amount"
+        ],
+        "protected_mentions": 0
+      }
+    ]
+  },
+  "errors": {
+    "refusal": 0,
+    "schema": 1,
+    "transport": 0
+  },
+  "thresholds": [
+    {
+      "metric": "leakage",
+      "op": "==",
+      "value": 0.0,
+      "passed": true
+    }
+  ],
+  "cost_total_usd": 3.12065438,
+  "started_at": "2026-11-17T08:21:06.034465Z",
+  "finished_at": "2026-11-17T08:29:25Z",
+  "freeze_digest": "7fec65d1345a9219",
+  "audit_head": {
+    "seq": 1464,
+    "hash": "04ec7ad1ea28c01f33cad6bfeecebe137d447f1c7d9705b0f34f79eb5c6495be"
+  },
+  "minutes_per_alert": 4.0,
+  "alarms": [
+    {
+      "metric": "auto_clear_rate",
+      "level": "warn",
+      "value": 0.088
+    }
+  ]
+}
