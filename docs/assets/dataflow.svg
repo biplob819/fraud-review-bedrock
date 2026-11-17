@@ -1,0 +1,113 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 620" width="1200" height="620" role="img" aria-labelledby="t d">
+  <title id="t">fraud-review-bedrock data flow</title>
+  <desc id="d">Simulated card transactions are minimised and split, scored by a LightGBM baseline, and the flagged alerts are triaged by Claude Haiku 5.5 then Claude Sonnet 5.5. A router checks every clear against the policy in code. Alerts end auto-cleared, held for priority review, or escalated, every step is written to a hash-chained audit log, and an evaluation scores the run against labels the agent never sees.</desc>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
+    </marker>
+    <style>
+      .box{fill:#ffffff;stroke:#334155;stroke-width:1.5;rx:10}
+      .agent{fill:#eef2ff;stroke:#4f46e5}
+      .gate{fill:#fef3c7;stroke:#b45309}
+      .out{fill:#ecfdf5;stroke:#047857}
+      .eval{fill:#f1f5f9;stroke:#475569;stroke-dasharray:5 4}
+      .h{font:600 15px system-ui,-apple-system,Segoe UI,Helvetica,Arial,sans-serif;fill:#0f172a}
+      .s{font:13px system-ui,-apple-system,Segoe UI,Helvetica,Arial,sans-serif;fill:#334155}
+      .note{font:italic 12px system-ui,-apple-system,Segoe UI,Helvetica,Arial,sans-serif;fill:#64748b}
+      .ln{stroke:#475569;stroke-width:1.6;fill:none;marker-end:url(#a)}
+      .dash{stroke:#94a3b8;stroke-width:1.4;fill:none;stroke-dasharray:5 4;marker-end:url(#a)}
+    </style>
+  </defs>
+  <rect width="1200" height="620" fill="#ffffff"/>
+  <text x="40" y="38" class="h" style="font-size:20px">Data flow: from transaction to decision</text>
+  <text x="40" y="60" class="note">All data is simulated (Sparkov via Amazon's Fraud Dataset Benchmark). The agent recommends; people decide.</text>
+
+  <!-- row 1: data and baseline -->
+  <rect x="40" y="90" width="200" height="96" class="box"/>
+  <text x="56" y="116" class="h">Sparkov transactions</text>
+  <text x="56" y="138" class="s">Kaggle files, pinned</text>
+  <text x="56" y="156" class="s">by sha256</text>
+
+  <rect x="290" y="90" width="230" height="96" class="box"/>
+  <text x="306" y="116" class="h">fraud load</text>
+  <text x="306" y="138" class="s">drop personal and location</text>
+  <text x="306" y="156" class="s">columns; opaque ids;</text>
+  <text x="306" y="174" class="s">time splits with hashes</text>
+
+  <rect x="570" y="90" width="250" height="96" class="box"/>
+  <text x="586" y="116" class="h">fraud baseline</text>
+  <text x="586" y="138" class="s">point-in-time features,</text>
+  <text x="586" y="156" class="s">LightGBM, 98% recall threshold,</text>
+  <text x="586" y="174" class="s">SHAP top-5 drivers</text>
+
+  <rect x="870" y="90" width="290" height="96" class="box"/>
+  <text x="886" y="116" class="h">Alerts (AlertCase)</text>
+  <text x="886" y="138" class="s">allow-listed fields only:</text>
+  <text x="886" y="156" class="s">amount, category, hour, risk score,</text>
+  <text x="886" y="174" class="s">spend vs usual, history, first merchant</text>
+
+  <path d="M240 138 H286" class="ln"/>
+  <path d="M520 138 H566" class="ln"/>
+  <path d="M820 138 H866" class="ln"/>
+
+  <!-- row 2: triage -->
+  <rect x="870" y="240" width="290" height="96" class="box agent"/>
+  <text x="886" y="266" class="h">Stage 1: Claude Haiku 5.5</text>
+  <text x="886" y="288" class="s">fast screen: clear or pass</text>
+  <text x="886" y="306" class="s">cached policy prompt, no tools,</text>
+  <text x="886" y="324" class="s">schema-constrained reply</text>
+
+  <rect x="570" y="240" width="250" height="96" class="box gate"/>
+  <text x="586" y="266" class="h">Router (code)</text>
+  <text x="586" y="288" class="s">clause exists, clear predicate</text>
+  <text x="586" y="306" class="s">holds, no never-clear clause,</text>
+  <text x="586" y="324" class="s">risk and confidence limits</text>
+
+  <rect x="290" y="240" width="212" height="96" class="box agent"/>
+  <text x="306" y="266" class="h">Stage 2: Claude Sonnet 5.5</text>
+  <text x="306" y="288" class="s">careful review:</text>
+  <text x="306" y="306" class="s">clear, hold or escalate</text>
+  <text x="306" y="324" class="s">with reasons and confidence</text>
+
+  <path d="M1015 186 V236" class="ln"/>
+  <path d="M870 288 H824" class="ln"/>
+  <path d="M570 276 H506" class="ln"/>
+  <text x="536" y="256" class="note" text-anchor="middle">pass or</text>
+  <text x="536" y="269" class="note" text-anchor="middle">refused</text>
+  <path d="M502 306 H566" class="ln"/>
+  <text x="536" y="324" class="note" text-anchor="middle">verdict</text>
+
+  <!-- row 3: outcomes -->
+  <rect x="40" y="400" width="200" height="80" class="box out"/>
+  <text x="56" y="428" class="h">Auto-cleared</text>
+  <text x="56" y="450" class="s">only when the router</text>
+  <text x="56" y="468" class="s">accepts the clear</text>
+
+  <rect x="290" y="400" width="230" height="80" class="box out"/>
+  <text x="306" y="428" class="h">Hold: priority queue</text>
+  <text x="306" y="450" class="s">likely fraud; a person</text>
+  <text x="306" y="468" class="s">reviews first</text>
+
+  <rect x="570" y="400" width="250" height="80" class="box out"/>
+  <text x="586" y="428" class="h">Escalate: standard queue</text>
+  <text x="586" y="450" class="s">unsure, refused clear,</text>
+  <text x="586" y="468" class="s">or any model error</text>
+
+  <rect x="870" y="400" width="290" height="80" class="box"/>
+  <text x="886" y="428" class="h">Hash-chained audit log</text>
+  <text x="886" y="450" class="s">every decision, disposition and</text>
+  <text x="886" y="468" class="s">analyst action; edits are detected</text>
+
+  <path d="M590 336 C590 380 150 360 140 396" class="ln"/>
+  <path d="M695 336 V396" class="ln"/>
+  <path d="M610 336 C610 372 405 362 405 396" class="ln"/>
+  <path d="M820 440 H866" class="ln"/>
+  <text x="843" y="432" class="note" text-anchor="middle">all</text>
+
+  <!-- evaluation -->
+  <rect x="40" y="524" width="1120" height="70" class="box eval"/>
+  <text x="56" y="550" class="h">Evaluation (offline, after the run)</text>
+  <text x="56" y="572" class="s">fraud leakage with an exact upper bound, recall vs the baseline, auto-clear rate, cost and latency; explanation checks with EvalKit</text>
+  <text x="56" y="588" class="note">Labels and SHAP drivers are read only here; no agent module can import them.</text>
+  <path d="M1015 480 V520" class="dash"/>
+</svg>
