@@ -61,20 +61,43 @@ def reply(text: str | None = GOOD, stop: str = "end_turn", **usage: int) -> Any:
     )
 
 
+class Raw:
+    """Stands in for the SDK's raw response: headers now, the parsed reply on `await parse()`."""
+
+    def __init__(self, message: Any) -> None:
+        self.message = message
+        self.headers = {"request-id": "req_1"}
+
+    async def parse(self) -> Any:
+        if isinstance(self.message, BaseException):
+            raise self.message  # a billed reply that cannot be read
+        return self.message
+
+
 class Script:
-    """A fake async client: each call pops the next scripted reply or exception."""
+    """A fake async client: each send pops the next scripted reply or exception. Replies come
+    back through `messages.with_raw_response.create`, as with the real client."""
 
     def __init__(self, *steps: Any) -> None:
         self.steps = list(steps)
         self.bodies: list[dict[str, Any]] = []
         self.messages = self
+        self.with_raw_response = self
 
     async def create(self, **body: Any) -> Any:
         self.bodies.append(body)
         step = self.steps.pop(0)
-        if isinstance(step, BaseException):
+        if isinstance(step, BaseException) and not isinstance(step, Unreadable):
             raise step
-        return step
+        return Raw(step.inner if isinstance(step, Unreadable) else step)
+
+
+class Unreadable(Exception):
+    """A scripted billed reply whose parse fails with `inner`."""
+
+    def __init__(self, inner: BaseException) -> None:
+        super().__init__(type(inner).__name__)
+        self.inner = inner
 
 
 def body(stage: int = 1) -> dict[str, Any]:
@@ -125,7 +148,7 @@ def test_every_send_is_guarded_and_a_tool_body_never_leaves():
             if len(self.bodies) == 1:
                 shared["output_config"]["tools"] = [{"name": "block_card"}]
                 raise status_error(529)
-            return reply()
+            return Raw(reply())
 
     shared = body()
     sneaky = Mutating()
@@ -225,8 +248,8 @@ def test_aws_credential_errors_are_config_and_bugs_are_not_hidden():
         run(Script(status_error(400)))
     with pytest.raises(TypeError):  # an ordinary bug mentioning a region stays a bug
         run(Script(TypeError("__init__() got an unexpected keyword argument 'aws_region'")))
-    bad_200 = anthropic.APIResponseValidationError(
-        response=httpx2.Response(200, request=REQ), body=None
+    bad_200 = Unreadable(
+        anthropic.APIResponseValidationError(response=httpx2.Response(200, request=REQ), body=None)
     )
     recovered = run(Script(bad_200, reply()))  # billed but unreadable: an invalid reply
     assert recovered.error is None and recovered.attempts == 2 and recovered.unmetered == 1
@@ -290,6 +313,21 @@ def test_unreadable_billed_replies_are_priced_at_worst_case(monkeypatch):
             1,
             None,
         ),
+        (  # nesting deep enough to raise RecursionError while parsing
+            [raw("[" * 100000, "application/json"), json_reply(message_json(good_usage))],
+            1,
+            None,
+        ),
+        (  # an integer too long to convert raises ValueError while parsing
+            [raw('{"a": ' + "9" * 5000 + "}", "application/json")] * 2,
+            2,
+            "schema",
+        ),
+        (  # implausible usage (it would overflow the price): unreadable, priced at the worst
+            [json_reply(message_json({"input_tokens": 10**400, "output_tokens": 5}))],
+            1,
+            None,
+        ),
         (  # content that is not a list, with readable usage: an invalid reply, metered
             [json_reply({**message_json(good_usage), "content": 5})] * 2,
             0,
@@ -329,6 +367,24 @@ def test_settled_call_records_spend_on_every_path():
     with pytest.raises(KeyError):  # an unknown failure: the whole reservation is recorded
         asyncio.run(go(Script(KeyError("bug")), cap))
     assert cap.actual == pytest.approx(worst) and cap.reserved == {}
+    tight = cost.SpendCap(worst * 1.0000001)  # room for one call; it bills, then the cap stops
+    tight.actual = worst * 0.9  # simulate earlier spend so the commit passes the cap
+    tight.max_usd = worst * 1.0000001 + worst * 0.9
+    with pytest.raises(cost.CapReached):
+        asyncio.run(go(Script(reply(output_tokens=4096, input_tokens=100000)), tight))
+    assert tight.reserved == {} and tight.actual > tight.max_usd  # recorded, then stopped
+
+    async def cancelled() -> None:
+        class Hang(Script):
+            async def create(self, **b: Any) -> Any:
+                raise asyncio.CancelledError
+
+        await go(Hang(), cap3)
+
+    cap3 = cost.SpendCap(5.0)
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(cancelled())
+    assert cap3.reserved == {} and cap3.actual == pytest.approx(worst)
 
 
 def test_missing_key_is_named_before_any_call(monkeypatch):

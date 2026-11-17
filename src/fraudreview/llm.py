@@ -25,7 +25,7 @@ from fraudreview.router import guard_request
 from fraudreview.schemas import Stage1Output, Stage2Output, Tokens, TriageDecision
 
 ErrorKind = Literal["schema", "refusal", "transport"]
-CODE_VERSION = "3"  # the `model_call` step; bump with any change to this module (BRK-03)
+CODE_VERSION = "4"  # the `model_call` step; bump with any change to this module (BRK-03)
 MAX_TRANSPORT_ATTEMPTS = 6  # §2.4
 MAX_SCHEMA_ATTEMPTS = 2  # one retry, same prompt (FR7)
 BACKOFF_BASE_S = 1.0
@@ -83,8 +83,12 @@ def build_body(
     }
 
 
+MAX_PLAUSIBLE_TOKENS = 10_000_000  # far above any context window; larger is unreadable
+
+
 def _count(v: Any) -> int | None:
-    return v if isinstance(v, int) and not isinstance(v, bool) and v >= 0 else None
+    ok = isinstance(v, int) and not isinstance(v, bool) and 0 <= v <= MAX_PLAUSIBLE_TOKENS
+    return v if ok else None
 
 
 def _usage(u: Any) -> Tokens | None:
@@ -116,18 +120,12 @@ def _add(a: Tokens, b: Tokens) -> Tokens:
 CREDENTIAL_PHRASES = ("could not resolve authentication", "could not resolve aws credentials")
 
 
-def _classify(exc: BaseException) -> Literal["transient", "config", "invalid"] | None:
+def _classify(exc: BaseException) -> Literal["transient", "config"] | None:
     """Sort an exception from a send: retry it, stop the run (exit 2), or neither (re-raise)."""
     import anthropic
 
     if isinstance(exc, anthropic.APIConnectionError):  # includes timeouts
         return "transient"
-    if isinstance(exc, anthropic.APIResponseValidationError):  # a billed 200 we cannot read
-        return "invalid"
-    import json as _json
-
-    if isinstance(exc, (_json.JSONDecodeError, UnicodeDecodeError)):  # a billed 200 we cannot
-        return "invalid"  # decode
     if isinstance(exc, anthropic.APIStatusError):
         status = exc.status_code
         if status in (408, 409, 429) or status >= 500:  # 529 is overload
@@ -203,7 +201,7 @@ async def call_model(
         guard_request(body)  # B6: immediately before every send, retries included
         attempts += 1
         try:
-            message = await client.messages.create(**body)
+            raw = await client.messages.with_raw_response.create(**body)  # send only
         except Exception as exc:
             kind = _classify(exc)
             seen.append(type(exc).__name__)
@@ -217,12 +215,6 @@ async def call_model(
                     tokens=tokens,
                     unmetered=unmetered,
                 ) from None
-            if kind == "invalid":  # billed but unreadable: an invalid reply, priced as worst
-                unmetered += 1
-                schema_failures += 1
-                if schema_failures >= MAX_SCHEMA_ATTEMPTS:
-                    return done(None, "schema")
-                continue
             if kind != "transient":
                 raise
             transport_failures += 1
@@ -230,9 +222,21 @@ async def call_model(
                 return done(None, "transport")
             await sleep(backoff_s(transport_failures, rng))
             continue
-        request_id = getattr(message, "_request_id", None) or getattr(message, "id", None)
-        if not isinstance(request_id, str):
-            request_id = None
+        # A 2xx reply is billed. Parse it apart from the send, so that any failure to read it
+        # (bad JSON, bad encoding, nesting, huge numbers, wrong types) is an invalid reply
+        # priced at the worst case, never a crash and never a send-time error class.
+        headers = getattr(raw, "headers", None)
+        rid = headers.get("request-id") if headers is not None else None
+        request_id = rid if isinstance(rid, str) else None
+        try:
+            message = await raw.parse()
+        except Exception:
+            seen.append("UnreadableReply")
+            unmetered += 1
+            schema_failures += 1
+            if schema_failures >= MAX_SCHEMA_ATTEMPTS:
+                return done(None, "schema")
+            continue
         metered = _usage(getattr(message, "usage", None))
         if metered is None:  # billed, but we cannot read what it cost: price the worst case
             unmetered += 1
@@ -276,13 +280,17 @@ async def settled_call(
     token = await cap.reserve(reserve)
     try:
         result = await call_model(client, body, output_model, **kw)
+        usd = billed_cost(result.tokens, result.unmetered, body, price)
     except ProviderConfigError as exc:
-        await cap.commit(token, billed_cost(exc.tokens, exc.unmetered, body, price))
+        try:
+            spent = billed_cost(exc.tokens, exc.unmetered, body, price)
+        except Exception:
+            spent = reserve
+        await cap.commit(token, min(spent, reserve) if spent == spent else reserve)
         raise
     except BaseException:
         await cap.commit(token, reserve)
         raise
-    usd = billed_cost(result.tokens, result.unmetered, body, price)
     await cap.commit(token, usd)
     return result, usd
 

@@ -22,6 +22,7 @@ from typing import Any, Literal
 import yaml
 
 from fraudreview.config import ConfigError, RunConfig, load_config
+from fraudreview.router import guard_request
 
 Status = Literal["ok", "warn", "fail", "skip"]
 EVALKIT_VERSION = "0.2.0"  # pinned in pyproject.toml by the v0.2.0 commit (PRE-06)
@@ -179,12 +180,13 @@ def check_quotas(quotas: Any, display: str) -> Check:
 def check_smoke(client: Any, model: str, prices: dict[str, Any] | None) -> Check:
     """One tiny call; reports tokens and its cost from prices.yaml."""
     name = f"smoke {model}"
+    body = {
+        "model": model,
+        "max_tokens": 16,
+        "messages": [{"role": "user", "content": "Reply with the single word: ready"}],
+    }
     try:
-        m = client.messages.create(
-            model=model,
-            max_tokens=16,
-            messages=[{"role": "user", "content": "Reply with the single word: ready"}],
-        )
+        m = client.messages.create(**guard_request(body))
     except Exception as exc:
         return Check(name, "fail", type(exc).__name__)
     used_in, used_out = m.usage.input_tokens, m.usage.output_tokens
@@ -337,12 +339,16 @@ def usage_cost(usage: dict[str, int], price: dict[str, float]) -> float:
 
 def structured_call(client: Any, model: str) -> tuple[dict[str, Any], dict[str, int], dict]:
     """One schema-constrained call; returns the parsed reply, usage and the rate-limit headers."""
-    raw = client.messages.with_raw_response.create(
-        model=model,
-        max_tokens=1024,
-        output_config={"effort": "low", "format": {"type": "json_schema", "schema": READY_SCHEMA}},
-        messages=[{"role": "user", "content": "Are you ready? Name your model family."}],
-    )
+    body = {
+        "model": model,
+        "max_tokens": 1024,
+        "output_config": {
+            "effort": "low",
+            "format": {"type": "json_schema", "schema": READY_SCHEMA},
+        },
+        "messages": [{"role": "user", "content": "Are you ready? Name your model family."}],
+    }
+    raw = client.messages.with_raw_response.create(**guard_request(body))
     m = raw.parse()
     text = next(b.text for b in m.content if b.type == "text")
     reply = json.loads(text)
@@ -361,13 +367,14 @@ def cache_pair(client: Any, model: str, system: str) -> list[dict[str, int]]:
     """The same cacheable prompt twice; the second call should read the cache (PRE-03)."""
     out = []
     for _ in range(2):
-        m = client.messages.create(
-            model=model,
-            max_tokens=256,
-            output_config={"effort": "low"},
-            system=[{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
-            messages=[{"role": "user", "content": "Reply with the single word: ready"}],
-        )
+        body = {
+            "model": model,
+            "max_tokens": 256,
+            "output_config": {"effort": "low"},
+            "system": [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
+            "messages": [{"role": "user", "content": "Reply with the single word: ready"}],
+        }
+        m = client.messages.create(**guard_request(body))
         out.append(_usage(m.usage))
     return out
 
