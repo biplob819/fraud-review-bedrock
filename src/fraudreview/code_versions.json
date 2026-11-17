@@ -2,5 +2,13 @@
   "model_call": {
     "code_version": "7",
     "source_sha256": "5b23f47945659cc5897d2d3d6a591b1e831c01b8e6d9de4d8f2ad361bb82102a"
+  },
+  "prompts": {
+    "code_version": "1",
+    "source_sha256": "a3b4de722fea05053ad779837027cc193bb03039478b2e21cefb769c4843c930"
+  },
+  "stages": {
+    "code_version": "1",
+    "source_sha256": "a338192951841e6a3556fa518a2efa69db89eb5dde46051c8373349f2b1fe9ca"
   }
 }

@@ -1,0 +1,90 @@
+"""The triage stages (A2.3 stage 1, A2.4 stage 2; Tech Spec §2.1, §2.3, §4.2).
+
+`run_stage` renders the prompt, looks the call up in the content-addressed cache, and otherwise
+calls the model through `llm.settled_call` (which reserves the worst case and settles the
+spend cap on every path), records the decision and stores it. Transport failures are not
+cached, so a rerun retries them.
+`needs_stage2` is the router hand-off after stage 1: an accepted clear ends the alert; anything
+else (a pass, a refused clear or an error) goes to stage 2.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+from dataclasses import dataclass, field
+from typing import Any, Literal
+
+from fraudreview import prompts
+from fraudreview.cache import Store, cache_key
+from fraudreview.config import RunConfig
+from fraudreview.cost import SpendCap
+from fraudreview.llm import build_body, settled_call, to_decision
+from fraudreview.policy import Policy
+from fraudreview.router import RouterSettings, check_clear
+from fraudreview.schemas import AlertCase, TriageDecision
+
+STAGE_CODE_VERSION = "1"  # bump when this module's logic changes (code_versions.json)
+
+
+@dataclass
+class Context:
+    config: RunConfig
+    policy: Policy
+    client: Any
+    store: Store
+    cap: SpendCap
+    prices: dict[str, dict[str, float]]
+    call_kw: dict[str, Any] = field(default_factory=dict)  # e.g. sleep and rng, for tests
+
+
+def decision_id(alert_id: str, stage: int) -> str:
+    return f"{alert_id}-s{stage}"
+
+
+async def run_stage(stage: Literal[1, 2], case: AlertCase, ctx: Context) -> TriageDecision:
+    cfg = ctx.config.stage1 if stage == 1 else ctx.config.stage2
+    output_model = prompts.OUTPUT_MODELS[stage]
+    system = prompts.system_blocks(stage, ctx.policy)
+    user = prompts.render_alert(case)
+    phash = prompts.prompt_hash(stage, ctx.policy)
+    key = cache_key(
+        step=f"stage{stage}",
+        code_version=STAGE_CODE_VERSION,
+        inp=prompts.alert_payload(case),
+        model=cfg.model,
+        effort=cfg.effort,
+        prompt_hash=phash,
+        policy_version=ctx.policy.version,
+        seed=ctx.config.seed,
+    )
+    cached = ctx.store.get(key, STAGE_CODE_VERSION)
+    if cached is not None:
+        hit = TriageDecision.model_validate_json(json.dumps(cached))
+        if hit.alert_id != case.alert_id or hit.stage != stage:
+            raise ValueError(f"cache entry {key[:12]} belongs to another alert or stage")
+        return hit.model_copy(update={"cache_hit": True})
+    body = build_body(cfg, system, user, output_model)
+    result, usd = await settled_call(
+        ctx.client, body, output_model, cap=ctx.cap, price=ctx.prices[cfg.model], **ctx.call_kw
+    )
+    decision = to_decision(
+        result,
+        decision_id=decision_id(case.alert_id, stage),
+        alert_id=case.alert_id,
+        stage=stage,
+        config=ctx.config,
+        prompt_hash=phash,
+        policy_version=ctx.policy.version,
+        input_hash=hashlib.sha256(user.encode("utf-8")).hexdigest()[:16],
+        cost_usd=usd,
+    )
+    if decision.error != "transport":  # a rerun retries transport failures
+        ctx.store.put(key, STAGE_CODE_VERSION, decision.model_dump(mode="json"))
+    return decision
+
+
+def needs_stage2(stage1: TriageDecision, case: AlertCase, ctx: Context) -> bool:
+    """The hand-off: only a clear the router accepts ends the alert at stage 1 (FR5)."""
+    settings = RouterSettings.from_config(ctx.config)
+    return not check_clear(stage1, case, ctx.policy, settings).accepted

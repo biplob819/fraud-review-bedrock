@@ -1,0 +1,200 @@
+{
+  "accepted_clears": 3,
+  "actions": {
+    "clear": 3,
+    "pass": 7
+  },
+  "cost_usd": 0.003842,
+  "model": "claude-haiku-5-5",
+  "n": 10,
+  "provider": "anthropic",
+  "rerun_cache_hits": 10,
+  "rows": [
+    {
+      "action": "clear",
+      "cache_hit_first": false,
+      "clauses": [
+        "P7.2",
+        "P3.9",
+        "P8.9"
+      ],
+      "cost_usd": 0.00062,
+      "error": null,
+      "to_stage2": false,
+      "tokens": {
+        "cache_read": 0,
+        "cache_write": 2081,
+        "input": 138,
+        "output": 692
+      }
+    },
+    {
+      "action": "clear",
+      "cache_hit_first": false,
+      "clauses": [
+        "P7.2",
+        "P6.1"
+      ],
+      "cost_usd": 0.000562,
+      "error": null,
+      "to_stage2": false,
+      "tokens": {
+        "cache_read": 2081,
+        "cache_write": 0,
+        "input": 138,
+        "output": 1055
+      }
+    },
+    {
+      "action": "pass",
+      "cache_hit_first": false,
+      "clauses": [
+        "P3.1",
+        "P3.9",
+        "P4.2",
+        "P4.9",
+        "P8.9",
+        "P5.1",
+        "P6.1"
+      ],
+      "cost_usd": 0.00031,
+      "error": null,
+      "to_stage2": true,
+      "tokens": {
+        "cache_read": 2081,
+        "cache_write": 0,
+        "input": 135,
+        "output": 551
+      }
+    },
+    {
+      "action": "pass",
+      "cache_hit_first": false,
+      "clauses": [
+        "P5.1",
+        "P6.1",
+        "P7.1",
+        "P7.3"
+      ],
+      "cost_usd": 0.000354,
+      "error": null,
+      "to_stage2": true,
+      "tokens": {
+        "cache_read": 2081,
+        "cache_write": 0,
+        "input": 136,
+        "output": 639
+      }
+    },
+    {
+      "action": "pass",
+      "cache_hit_first": false,
+      "clauses": [
+        "P3.1",
+        "P4.2",
+        "P4.9"
+      ],
+      "cost_usd": 0.000332,
+      "error": null,
+      "to_stage2": true,
+      "tokens": {
+        "cache_read": 2081,
+        "cache_write": 0,
+        "input": 132,
+        "output": 595
+      }
+    },
+    {
+      "action": "pass",
+      "cache_hit_first": false,
+      "clauses": [
+        "P3.9",
+        "P3.1"
+      ],
+      "cost_usd": 0.000257,
+      "error": null,
+      "to_stage2": true,
+      "tokens": {
+        "cache_read": 2081,
+        "cache_write": 0,
+        "input": 137,
+        "output": 444
+      }
+    },
+    {
+      "action": "clear",
+      "cache_hit_first": false,
+      "clauses": [
+        "P7.2",
+        "P6.1"
+      ],
+      "cost_usd": 0.00048,
+      "error": null,
+      "to_stage2": false,
+      "tokens": {
+        "cache_read": 2081,
+        "cache_write": 0,
+        "input": 137,
+        "output": 890
+      }
+    },
+    {
+      "action": "pass",
+      "cache_hit_first": false,
+      "clauses": [
+        "P3.1",
+        "P4.2",
+        "P4.9",
+        "P6.1"
+      ],
+      "cost_usd": 0.000287,
+      "error": null,
+      "to_stage2": true,
+      "tokens": {
+        "cache_read": 2081,
+        "cache_write": 0,
+        "input": 135,
+        "output": 506
+      }
+    },
+    {
+      "action": "pass",
+      "cache_hit_first": false,
+      "clauses": [
+        "P3.1",
+        "P3.9",
+        "P4.2",
+        "P4.9",
+        "P8.9"
+      ],
+      "cost_usd": 0.000294,
+      "error": null,
+      "to_stage2": true,
+      "tokens": {
+        "cache_read": 2081,
+        "cache_write": 0,
+        "input": 135,
+        "output": 519
+      }
+    },
+    {
+      "action": "pass",
+      "cache_hit_first": false,
+      "clauses": [
+        "P7.1",
+        "P7.3",
+        "P6.1"
+      ],
+      "cost_usd": 0.000348,
+      "error": null,
+      "to_stage2": true,
+      "tokens": {
+        "cache_read": 2081,
+        "cache_write": 0,
+        "input": 137,
+        "output": 627
+      }
+    }
+  ],
+  "to_stage2": 7
+}
