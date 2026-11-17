@@ -120,8 +120,23 @@ def test_stage2_failures_escalate_and_are_counted_by_type(tmp_path):
     assert t2.disposition.final == "escalate"
     t3, _ = triage(tmp_path / "c", ROUTINE, refused(), out("hold"))  # a stage-1 refusal
     assert t3.decisions[0].error == "refusal" and t3.disposition.final == "hold"
-    counts = stages.error_counts([*t1.decisions, *t2.decisions, *t3.decisions])
-    assert counts == {"schema": 1, "refusal": 2, "transport": 0}
+    import anthropic
+    import httpx2
+
+    req = httpx2.Request("POST", "https://api.anthropic.com/v1/messages")
+    down = anthropic.APIConnectionError(request=req)
+
+    async def no_sleep(_: float) -> None:
+        return None
+
+    fake4 = Fake(out("pass"), *([down] * 6))
+    cx4 = ctx(tmp_path / "d", fake4)
+    cx4.call_kw = {"sleep": no_sleep}
+    t4 = asyncio.run(stages.triage_alert(ROUTINE, cx4))
+    assert t4.decisions[1].error == "transport" and t4.decisions[1].attempts == 6
+    assert t4.disposition.final == "escalate" and t4.disposition.queue == "standard"
+    every = [*t1.decisions, *t2.decisions, *t3.decisions, *t4.decisions]
+    assert stages.error_counts(every) == {"schema": 1, "refusal": 2, "transport": 1}
 
 
 # ------------------------------------------------------------------ ST2-04 latency
@@ -150,8 +165,27 @@ def test_committed_stage2_sample_is_consistent():
     root = Path(__file__).resolve().parent.parent
     rec = json.loads((root / "docs" / "measurements" / "stage2-sample.json").read_text("utf-8"))
     assert rec["provider"] == CONFIG.provider and rec["n"] == len(rec["rows"]) == 10
+    from collections import Counter
+
     finals = [r["final"] for r in rec["rows"]]
-    assert sum(rec["dispositions"].values()) == 10 == len(finals)
+    assert rec["dispositions"] == dict(Counter(finals)) and len(finals) == 10
+    assert rec["stage2_cost_usd"] == pytest.approx(
+        sum(r["stage2_cost_usd"] for r in rec["rows"]), abs=1e-5
+    )
+    errs = Counter(r["stage2_error"] for r in rec["rows"] if r["stage2_error"])
+    assert all(rec["errors"][k] >= v for k, v in errs.items())
+    ledger = [
+        json.loads(x)
+        for x in (root / "docs" / "measurements" / "spend-ledger.jsonl")
+        .read_text("utf-8")
+        .split("\n")
+        if x
+    ]
+    line = [x for x in ledger if x["run_id"] == "a2.4-stage2-sample"][-1]
+    assert line["actual_usd"] == pytest.approx(rec["total_billed_usd"], abs=1e-6)
+    assert rec["total_billed_usd"] >= rec["stage2_cost_usd"]
+    for stage in rec["latency_ms"].values():
+        assert stage["p50"] <= stage["p95"]
     for r in rec["rows"]:
         assert r["final"] in ("auto_cleared", "hold", "escalate")
         if r["final"] == "auto_cleared":

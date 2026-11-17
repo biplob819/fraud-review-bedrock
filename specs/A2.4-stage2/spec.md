@@ -9,7 +9,7 @@ Sonnet 5.5 at effort `high` reviews every alert stage 1 did not clear and recomm
 - `stages.run_stage(2, …)` with `Stage2Output` and the stage-2 prompt job (built in A2.3 for both stages) (ST2-01).
 - `stages.triage_alert(case, ctx)` runs stage 1, the hand-off, stage 2 when needed, and `router.dispose`, and returns the decisions and exactly one `Disposition` (ST2-03).
 - `stages.error_counts(decisions)` counts `schema`, `refusal` and `transport` failures (ST2-02). The retry rules come from N1.3: an invalid reply is retried once, a refusal is never retried, and transport errors back off up to 6 times.
-- `docs/measurements/stage2-sample.json`: a live run of `triage_alert` on the same 10 dev alerts as A2.3. Stage 1 replays from the cache, so only stage 2 is billed. It records dispositions, refusal reasons, error counts, and p50/p95 latency per stage over live calls from `metrics.latency` (ST2-04), with tokens and cost. Spend is under $0.15.
+- `docs/measurements/stage2-sample.json`: a live run of `triage_alert` on the same 10 dev alerts as A2.3. Both stages were billed: adding `triage_alert` changed the `stages` module, so its code version (part of every cache key) moved from 3 to 4 and the A2.3 stage-1 entries no longer match, as designed. It records dispositions, refusal reasons, error counts, and p50/p95 latency per stage over live calls from `metrics.latency` (ST2-04), with tokens and cost. Spend is under $0.15.
 
 ## Rules
 - A stage-2 error, a refusal, a schema failure or a refused clear is never a clear.

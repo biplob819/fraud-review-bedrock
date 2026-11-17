@@ -56,7 +56,8 @@ async def main(n: int, out: Path) -> int:
             calls=calls,
             estimate_usd=planned,
             actual_usd=cap.actual,
-            note="stage 1 replays from the cache when unchanged; the estimate plans both stages",
+            note="stage 1 replays from the cache when its key is unchanged; the estimate plans "
+            "both stages",
         )
     decisions = [d for t in results for d in t.decisions]
     rows = []
