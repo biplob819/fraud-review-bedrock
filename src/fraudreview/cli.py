@@ -233,11 +233,12 @@ def _demo_cache(args: argparse.Namespace) -> int:
         print("fraud demo-cache: --max-cases must be at least 1", file=sys.stderr)
         return 2
     try:
-        n, size = write_replay(args.run, args.alerts, args.out, args.max_cases)
+        n, size, skipped = write_replay(args.run, args.alerts, args.out, args.max_cases)
     except DemoCacheError as exc:
         print(f"fraud demo-cache: {exc}", file=sys.stderr)
         return 2
     print(f"wrote {args.out}: {n} held or escalated cases, {size} bytes (simulated data)")
+    print(f"skipped {skipped} cases whose text the public-content guard flags")
     return 0
 
 

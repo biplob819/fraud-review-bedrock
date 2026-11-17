@@ -17,7 +17,7 @@ import pytest
 from fraudreview import demo
 from fraudreview.audit import event_hash, read_log
 from fraudreview.cli import main
-from fraudreview.demo_cache import build_replay, write_replay
+from fraudreview.demo_cache import build_replay, build_replay_guarded, write_replay
 from fraudreview.schemas import AnalystAction
 from fraudreview.truth import Alert
 
@@ -167,7 +167,7 @@ def test_demo_cache_strips_request_ids(tmp_path):
 @pytest.mark.contract
 def test_demo_cache_cap_keeps_holds_first(tmp_path):
     run, alerts = _write_run(tmp_path)
-    n, _ = write_replay(run, alerts, tmp_path / "r.jsonl", max_cases=2)
+    n, _, _ = write_replay(run, alerts, tmp_path / "r.jsonl", max_cases=2)
     lines = (tmp_path / "r.jsonl").read_text(encoding="utf-8").splitlines()
     assert n == 2 and all(json.loads(x)["disposition"]["queue"] == "priority" for x in lines)
 
@@ -320,3 +320,132 @@ def test_app_imports_without_starting_a_server():
     assert module.num(0.5, "{:.2f}") == "0.50 (simulated)"
     record = demo.queue(REPLAY)[0]
     assert "(simulated)" in module.case_label(record)
+
+
+def _run_app():
+    from streamlit.testing.v1 import AppTest
+
+    at = AppTest.from_file(str(APP), default_timeout=30)
+    at.run()
+    assert not at.exception, [e.value for e in at.exception]
+    return at
+
+
+def test_app_walks_review_to_decision_to_audit_entry_headless():
+    """DEM-02/DEM-03: the real page over the real replay, headless: pick a case, see the reasons
+    and score drivers, record a decision, and find the audit entry, with the chain verifying."""
+    pytest.importorskip("streamlit")
+    at = _run_app()
+    cases = demo.queue(REPLAY)
+    first = cases[0]
+    alert_id = first["alert"]["case"]["alert_id"]
+    shown = " ".join(m.value for m in at.markdown)
+    assert first["alert"]["merchant"] in shown and "(simulated)" in shown
+    assert any("Score drivers" in s.value for s in at.subheader)
+    assert [b.label for b in at.button] == ["Confirm fraud", "Clear", "Override with comment"]
+    assert "No actions yet in this session." in [m.value for m in at.markdown]
+
+    # an override with no comment is refused and writes nothing
+    at.button(key=f"override-{alert_id}").click().run()
+    assert any("needs a comment" in e.value for e in at.error)
+    log = at.session_state["audit_log"]
+    assert demo.session_events(log) == []
+
+    # confirm: one chained entry, shown in the trail with a verified chain
+    at.button(key=f"confirm-{alert_id}").click().run()
+    assert not at.exception
+    assert any("audit event 0" in s.value for s in at.success)
+    events = demo.session_events(log)  # verifies the chain
+    assert len(events) == 1 and events[0].alert_id == alert_id
+    assert isinstance(events[0].payload, AnalystAction)
+    assert events[0].payload.action == "confirm_fraud"
+    assert any("Chain verified: 1 events" in s.value for s in at.success)
+
+    # a second call on the next case, with a comment, extends the chain
+    at.selectbox[0].set_value(1).run()
+    second_id = cases[1]["alert"]["case"]["alert_id"]
+    at.text_input(key=f"comment-{second_id}").set_value("customer called").run()
+    at.button(key=f"override-{second_id}").click().run()
+    events = read_log(log.path)
+    assert [e.seq for e in events] == [0, 1]
+    assert events[1].prev_hash == events[0].hash
+    assert events[1].payload.comment == "customer called"  # type: ignore[union-attr]
+    assert any("Chain verified: 2 events" in s.value for s in at.success)
+    assert demo.session_bytes(log) == log.path.read_bytes()
+
+
+@pytest.mark.safety
+def test_demo_requirements_are_pinned_to_the_lock_and_hold_no_cloud_client():
+    """DEM-04/DEM-05: the deployed page installs only pinned packages from uv.lock."""
+    import tomllib
+
+    lock = tomllib.load((ROOT / "uv.lock").open("rb"))
+    locked = {p["name"]: p["version"] for p in lock["package"]}
+    pins = {}
+    for line in (ROOT / "demo" / "requirements.txt").read_text(encoding="utf-8").splitlines():
+        line = line.split(" ;")[0].strip()
+        if line and not line.startswith("#"):
+            name, _, version = line.partition("==")
+            assert version, f"{line!r} is not pinned"
+            pins[name.lower().replace("_", "-")] = version
+    assert {"streamlit", "pydantic", "pyyaml", "markdown-it-py"} <= set(pins)
+    for name, version in pins.items():
+        assert locked[name] == version, name
+    banned = {"anthropic", "boto3", "botocore", "openai", "evalkit-harness", "awscrt"}
+    assert not banned & set(pins)
+    assert "replay-only" in (ROOT / "demo" / "README.md").read_text(encoding="utf-8").lower()
+
+
+# ---------- the content guard in demo-cache ----------
+
+
+def _guard_file(tmp: Path, term: str) -> Path:
+    path = tmp / "guard.local"
+    path.write_text(f"# test terms\n{term}\n", encoding="utf-8")
+    return path
+
+
+@pytest.mark.contract
+def test_demo_cache_skips_guarded_cases_and_counts_them(tmp_path):
+    """A guarded term in a merchant name (case 4) or a reason (case 5) never reaches the file."""
+    run, alerts = _write_run(tmp_path)
+    term = "zzgrdterm"
+    rows = [json.loads(x) for x in alerts.read_text(encoding="utf-8").splitlines()]
+    for row in rows:
+        if row["case"]["alert_id"] == _id(4):
+            row["merchant"] = f"The {term.upper()} Shop"
+    alerts.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    decisions = run / "decisions.jsonl"
+    text = decisions.read_text(encoding="utf-8").replace(
+        '"reasons": ["Night-time purchase."]', f'"reasons": ["Night-time {term} purchase."]'
+    )  # every decision, so every case; keep only case 5's by restoring the others
+    lines = [json.loads(x) for x in text.splitlines()]
+    for d in lines:
+        if d["alert_id"] != _id(5):
+            d["output"]["reasons"] = ["Night-time purchase."]
+    decisions.write_text("".join(json.dumps(d) + "\n" for d in lines), encoding="utf-8")
+    guard = _guard_file(tmp_path, term)
+    out = tmp_path / "replay.jsonl"
+    n, _, skipped = write_replay(run, alerts, out, guard_file=guard)
+    assert skipped == 2 and n == 2  # cases 4 and 5 out; 1 and 3 kept (case 2 is auto-cleared)
+    written = out.read_text(encoding="utf-8")
+    assert term not in written.lower()
+    assert [json.loads(x)["alert"]["case"]["alert_id"] for x in written.splitlines()] == [
+        _id(3),
+        _id(1),
+    ]
+
+
+@pytest.mark.contract
+def test_demo_cache_guard_defaults_to_the_shared_term_list(tmp_path):
+    """The default guard is fraudreview.content_guard's list, not a copy: a generic pattern in
+    it (a home-directory path) is skipped with no guard file passed."""
+    from fraudreview.content_guard import GENERIC_PRIVATE, private_patterns
+
+    assert private_patterns(tmp_path / "missing") == GENERIC_PRIVATE
+    run, alerts = _write_run(tmp_path)
+    rows = [json.loads(x) for x in alerts.read_text(encoding="utf-8").splitlines()]
+    rows[0]["merchant"] = "Shop at " + "/" + "Users" + "/x"
+    alerts.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    _, skipped = build_replay_guarded(run, alerts)
+    assert skipped == 1

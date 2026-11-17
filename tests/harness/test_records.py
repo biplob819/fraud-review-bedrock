@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 import status
+from fraudreview.content_guard import private_patterns
 from harness_lib import ROOT
 
 WORKFLOWS = ROOT / ".github" / "workflows"
@@ -130,15 +131,11 @@ def test_public_docs_carry_no_dates():
         assert not hits, (name, hits[:3])
 
 
-# Generic patterns are built from pieces so this file never matches its own scan.
-# Sensitive terms live only in the git-ignored .public-guard.local.
+# The term list lives in one place, fraudreview.content_guard (generic patterns there; sensitive
+# terms only in the git-ignored .public-guard.local). Built from pieces so this file never
+# matches its own scan.
 HOME = "~" + "/"
 USERS = "/" + "Users" + "/"
-GENERIC_PRIVATE = [
-    re.escape(HOME) + r"(?!\.(?:kaggle|aws|config)/)",  # standard tool config paths are fine
-    re.escape(USERS),
-]
-GUARD_FILE = ROOT / ".public-guard.local"
 
 
 def _tracked_text_files():
@@ -153,16 +150,6 @@ def _tracked_text_files():
             ["git", "show", f":{rel}"], cwd=ROOT, capture_output=True, check=True
         ).stdout
         yield rel, rel + "\n" + blob.decode("utf-8", errors="replace")  # the path counts too
-
-
-def private_patterns() -> list[str]:
-    pats = list(GENERIC_PRIVATE)
-    if GUARD_FILE.is_file():
-        for line in GUARD_FILE.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if line and not line.startswith("#"):
-                pats.append(line)
-    return pats
 
 
 def test_tracked_files_carry_no_private_content():
