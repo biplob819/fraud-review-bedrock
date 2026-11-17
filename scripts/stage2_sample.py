@@ -1,6 +1,7 @@
 """A2.4 live proof: `stages.triage_alert` on the first N dev alerts (stage 1 replays from the
-A2.3 cache; stage 2 is billed). Records dispositions, refusal reasons, error counts, latency per
-stage over live calls, tokens and cost; no alert or request id. One spend-ledger line.
+cache when its key is unchanged; otherwise both stages are billed, and the ledger note says
+so). Records dispositions, refusal reasons, error counts, latency per stage over live calls,
+tokens and cost; no alert or request id. One spend-ledger line.
 
     uv run python scripts/stage2_sample.py 10 docs/measurements/stage2-sample.json
 """
@@ -48,6 +49,8 @@ async def main(n: int, out: Path) -> int:
             calls += sum(0 if d.cache_hit else d.attempts for d in t.decisions)
             results.append(t)
     finally:
+        replayed = sum(t.decisions[0].cache_hit for t in results)
+        billed = "stage 1 replayed from the cache" if replayed else "both stages billed"
         append_spend(
             ROOT / "docs" / "measurements" / "spend-ledger.jsonl",
             run_id="a2.4-stage2-sample",
@@ -56,8 +59,7 @@ async def main(n: int, out: Path) -> int:
             calls=calls,
             estimate_usd=planned,
             actual_usd=cap.actual,
-            note="stage 1 replays from the cache when its key is unchanged; the estimate plans "
-            "both stages",
+            note=f"{billed} ({replayed} stage-1 cache hits); the estimate plans both stages",
         )
     decisions = [d for t in results for d in t.decisions]
     rows = []

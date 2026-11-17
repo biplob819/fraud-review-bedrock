@@ -152,9 +152,11 @@ def test_latency_counts_live_calls_only(tmp_path):
     live = [d for c in cases for d in asyncio.run(stages.triage_alert(c, cx)).decisions]
     again = [d for c in cases for d in asyncio.run(stages.triage_alert(c, cx)).decisions]
     assert all(not d.cache_hit for d in live) and all(d.cache_hit for d in again)
-    lat = metrics.latency(live + again)
+    slow = [d.model_copy(update={"latency_ms": 10**9}) for d in again]  # extreme on purpose
+    lat = metrics.latency(live + slow)
     assert set(lat) == {"stage1", "stage2"}
-    assert lat == metrics.latency(live)  # cached replays change nothing
+    assert lat == metrics.latency(live)  # cached replays, however slow, change nothing
+    assert all(s.p95 < 10**9 for s in lat.values())
     assert all(d.latency_ms >= 0 for d in live)
 
 
@@ -173,7 +175,7 @@ def test_committed_stage2_sample_is_consistent():
         sum(r["stage2_cost_usd"] for r in rec["rows"]), abs=1e-5
     )
     errs = Counter(r["stage2_error"] for r in rec["rows"] if r["stage2_error"])
-    assert all(rec["errors"][k] >= v for k, v in errs.items())
+    assert all(rec["errors"][k] >= v for k, v in errs.items())  # stage-1 errors add to these
     ledger = [
         json.loads(x)
         for x in (root / "docs" / "measurements" / "spend-ledger.jsonl")
@@ -190,8 +192,10 @@ def test_committed_stage2_sample_is_consistent():
         assert r["final"] in ("auto_cleared", "hold", "escalate")
         if r["final"] == "auto_cleared":
             assert not r["refusals"]
-        if r["stage2_action"] is None:  # no stage 2: only an accepted stage-1 clear
-            assert r["final"] == "auto_cleared" and r["decided_at_stage"] == 1
+        if r["decided_at_stage"] == 1:  # no stage 2: only an accepted stage-1 clear
+            assert r["final"] == "auto_cleared" and r["stage2_action"] is None
+        if r["stage2_error"]:
+            assert r["final"] == "escalate"
     assert set(rec["errors"]) == {"schema", "refusal", "transport"}
     assert rec["latency_ms"]["stage2"]["p50"] <= rec["latency_ms"]["stage2"]["p95"]
     assert 0 < rec["stage2_cost_usd"] < 0.15
