@@ -4,7 +4,7 @@
     "clear": 3,
     "pass": 7
   },
-  "cost_usd": 0.003842,
+  "cost_usd": 0.004088,
   "model": "claude-haiku-5-5",
   "n": 10,
   "provider": "anthropic",
@@ -15,34 +15,33 @@
       "cache_hit_first": false,
       "clauses": [
         "P7.2",
-        "P3.9",
-        "P8.9"
+        "P8.9",
+        "P6.9"
       ],
-      "cost_usd": 0.00062,
+      "cost_usd": 0.000689,
       "error": null,
       "to_stage2": false,
       "tokens": {
         "cache_read": 0,
-        "cache_write": 2081,
+        "cache_write": 2141,
         "input": 138,
-        "output": 692
+        "output": 816
       }
     },
     {
       "action": "clear",
       "cache_hit_first": false,
       "clauses": [
-        "P7.2",
-        "P6.1"
+        "P7.2"
       ],
-      "cost_usd": 0.000562,
+      "cost_usd": 0.000334,
       "error": null,
       "to_stage2": false,
       "tokens": {
-        "cache_read": 2081,
+        "cache_read": 2141,
         "cache_write": 0,
         "input": 138,
-        "output": 1055
+        "output": 597
       }
     },
     {
@@ -53,37 +52,34 @@
         "P3.9",
         "P4.2",
         "P4.9",
-        "P8.9",
-        "P5.1",
-        "P6.1"
+        "P6.1",
+        "P8.9"
       ],
-      "cost_usd": 0.00031,
+      "cost_usd": 0.000273,
       "error": null,
       "to_stage2": true,
       "tokens": {
-        "cache_read": 2081,
+        "cache_read": 2141,
         "cache_write": 0,
         "input": 135,
-        "output": 551
+        "output": 476
       }
     },
     {
       "action": "pass",
       "cache_hit_first": false,
       "clauses": [
-        "P5.1",
         "P6.1",
-        "P7.1",
-        "P7.3"
+        "P7.1"
       ],
-      "cost_usd": 0.000354,
+      "cost_usd": 0.000397,
       "error": null,
       "to_stage2": true,
       "tokens": {
-        "cache_read": 2081,
+        "cache_read": 2141,
         "cache_write": 0,
         "input": 136,
-        "output": 639
+        "output": 723
       }
     },
     {
@@ -94,14 +90,14 @@
         "P4.2",
         "P4.9"
       ],
-      "cost_usd": 0.000332,
+      "cost_usd": 0.000239,
       "error": null,
       "to_stage2": true,
       "tokens": {
-        "cache_read": 2081,
+        "cache_read": 2141,
         "cache_write": 0,
         "input": 132,
-        "output": 595
+        "output": 409
       }
     },
     {
@@ -111,14 +107,14 @@
         "P3.9",
         "P3.1"
       ],
-      "cost_usd": 0.000257,
+      "cost_usd": 0.000243,
       "error": null,
       "to_stage2": true,
       "tokens": {
-        "cache_read": 2081,
+        "cache_read": 2141,
         "cache_write": 0,
         "input": 137,
-        "output": 444
+        "output": 415
       }
     },
     {
@@ -126,16 +122,17 @@
       "cache_hit_first": false,
       "clauses": [
         "P7.2",
-        "P6.1"
+        "P4.9",
+        "P8.9"
       ],
-      "cost_usd": 0.00048,
+      "cost_usd": 0.000911,
       "error": null,
       "to_stage2": false,
       "tokens": {
-        "cache_read": 2081,
+        "cache_read": 4282,
         "cache_write": 0,
-        "input": 137,
-        "output": 890
+        "input": 274,
+        "output": 1681
       }
     },
     {
@@ -147,14 +144,14 @@
         "P4.9",
         "P6.1"
       ],
-      "cost_usd": 0.000287,
+      "cost_usd": 0.000327,
       "error": null,
       "to_stage2": true,
       "tokens": {
-        "cache_read": 2081,
+        "cache_read": 2141,
         "cache_write": 0,
         "input": 135,
-        "output": 506
+        "output": 585
       }
     },
     {
@@ -165,34 +162,34 @@
         "P3.9",
         "P4.2",
         "P4.9",
+        "P6.1",
         "P8.9"
       ],
-      "cost_usd": 0.000294,
+      "cost_usd": 0.000312,
       "error": null,
       "to_stage2": true,
       "tokens": {
-        "cache_read": 2081,
+        "cache_read": 2141,
         "cache_write": 0,
         "input": 135,
-        "output": 519
+        "output": 554
       }
     },
     {
       "action": "pass",
       "cache_hit_first": false,
       "clauses": [
-        "P7.1",
-        "P7.3",
-        "P6.1"
+        "P6.1",
+        "P7.1"
       ],
-      "cost_usd": 0.000348,
+      "cost_usd": 0.000364,
       "error": null,
       "to_stage2": true,
       "tokens": {
-        "cache_read": 2081,
+        "cache_read": 2141,
         "cache_write": 0,
         "input": 137,
-        "output": 627
+        "output": 658
       }
     }
   ],

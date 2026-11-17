@@ -134,6 +134,9 @@ def test_prompt_hash_tracks_rules_policy_and_schema(monkeypatch):
     monkeypatch.setattr(prompts, "RULES", prompts.RULES + " Be brief.")
     assert prompts.prompt_hash(1, POLICY) != h1
     monkeypatch.undo()
+    monkeypatch.setitem(prompts.OUTPUT_MODELS, 1, prompts.OUTPUT_MODELS[2])  # another schema
+    assert prompts.prompt_hash(1, POLICY) != h1
+    monkeypatch.undo()
     changed = type(POLICY)(
         clauses=POLICY.clauses, version="x", text=POLICY.text, _prompt=POLICY.prompt_text() + "!"
     )
@@ -176,9 +179,15 @@ def test_transport_failures_are_not_cached(tmp_path):
     assert retry.output is not None and not retry.cache_hit and len(fake.bodies) == 7
 
 
+def refusal() -> Any:
+    usage = SimpleNamespace(input_tokens=120, output_tokens=3)
+    return SimpleNamespace(content=[], stop_reason="refusal", usage=usage)
+
+
 def test_only_an_accepted_clear_skips_stage2(tmp_path):
     cx = ctx(
-        tmp_path, Fake(reply("clear"), reply("pass"), reply("clear"), reply("clear", ("P9.9",)))
+        tmp_path,
+        Fake(reply("clear"), reply("pass"), reply("clear"), reply("clear", ("P9.9",)), refusal()),
     )
     assert not stages.needs_stage2(go(1, ROUTINE, cx), ROUTINE, cx)  # P7.1 holds: accepted
     passed = case(alert_id="a-ccccccccccccccc3", features={"card_history_n": 401})
@@ -186,6 +195,34 @@ def test_only_an_accepted_clear_skips_stage2(tmp_path):
     assert stages.needs_stage2(go(1, RISKY, cx), RISKY, cx)  # a clear the router refuses
     odd = case(alert_id="a-ddddddddddddddd4", features={"card_history_n": 402})
     assert stages.needs_stage2(go(1, odd, cx), odd, cx)  # an invented clause
+    refused = case(alert_id="a-fffffffffffffff6", features={"card_history_n": 403})
+    d = go(1, refused, cx)
+    assert d.error == "refusal" and stages.needs_stage2(d, refused, cx)  # any error
+
+
+def test_cache_key_covers_everything_that_decides_the_call(tmp_path, monkeypatch):
+    fake = Fake(*[reply("pass") for _ in range(6)])
+    cx = ctx(tmp_path, fake)
+    go(1, ROUTINE, cx)
+    go(1, ROUTINE, cx)
+    assert len(fake.bodies) == 1  # same everything: a hit
+    twin = ROUTINE.model_copy(update={"alert_id": "a-abababababababab"})
+    assert go(1, twin, cx).alert_id == twin.alert_id and len(fake.bodies) == 2  # no collision
+    real_render = prompts.render_alert
+    monkeypatch.setattr(prompts, "render_alert", lambda c: real_render(c) + " ")
+    go(1, ROUTINE, cx)
+    assert len(fake.bodies) == 3  # the rendered text changed: a miss
+    monkeypatch.undo()
+    monkeypatch.setattr(llm, "CODE_VERSION", "999")
+    go(1, ROUTINE, cx)
+    assert len(fake.bodies) == 4  # reply handling changed: a miss
+    monkeypatch.undo()
+    bigger = CONFIG.model_copy(
+        update={"stage1": CONFIG.stage1.model_copy(update={"max_output_tokens": 8000})}
+    )
+    cx.config = bigger
+    go(1, ROUTINE, cx)
+    assert len(fake.bodies) == 5  # a different output limit: a miss
 
 
 # ------------------------------------------------------------------ ST1-03 prompt safety
@@ -200,20 +237,7 @@ def all_keys(value: Any) -> set[str]:
 @pytest.mark.safety
 def test_rendered_prompts_hold_only_allow_listed_keys(tmp_path):
     cases = [ROUTINE, RISKY, case(alert_id="a-eeeeeeeeeeeeeee5", features={"amt_vs_usual": None})]
-    sample = ROOT / "results" / "baseline" / "cases_dev.jsonl"
-    if sample.exists():  # the real samples, when present locally
-        for name in ("cases_dev.jsonl", "cases_eval.jsonl"):
-            lines = (ROOT / "results" / "baseline" / name).read_text("utf-8").splitlines()
-            cases += [AlertCase.model_validate_json(x) for x in lines if x.strip()]
-    allowed = set(prompts.ALERT_KEYS) | set(prompts.FEATURE_KEYS)
-    truth_words = ("label", "shap", "is_fraud", "merchant", "alert_id", "trans_ts", "card_id")
-    for c in cases:
-        payload = prompts.alert_payload(c)
-        assert all_keys(payload) <= allowed
-        text = prompts.render_alert(c)
-        assert c.alert_id not in text
-        for word in (*DROPPED, *truth_words):
-            assert f'"{word}"' not in text
+    check_rendering(cases)
     fake = Fake(reply("pass"))
     go(1, RISKY, ctx(tmp_path, fake))
     sent = json.dumps(fake.bodies[0])
@@ -226,24 +250,65 @@ def test_rendered_prompts_hold_only_allow_listed_keys(tmp_path):
         prompts.check_payload(bad)
 
 
-AGENT_MODULES = ("prompts", "stages", "llm", "router", "policy", "cost", "cache", "config")
+SAMPLES = ROOT / "results" / "baseline"
+
+
+@pytest.mark.skipif(
+    not (SAMPLES / "cases_dev.jsonl").exists(),
+    reason="the dev and eval samples are local (results/ is git-ignored); run `fraud baseline`",
+)
+def test_every_real_dev_and_eval_case_renders_only_allow_listed_keys():
+    cases = []
+    for name in ("cases_dev.jsonl", "cases_eval.jsonl"):
+        lines = (SAMPLES / name).read_text("utf-8").splitlines()
+        cases += [AlertCase.model_validate_json(x) for x in lines if x.strip()]
+    assert len(cases) == 600
+    check_rendering(cases)
+
+
+def check_rendering(cases: list[AlertCase]) -> None:
+    allowed = set(prompts.ALERT_KEYS) | set(prompts.FEATURE_KEYS)
+    truth_words = ("label", "shap", "is_fraud", "merchant", "alert_id", "trans_ts", "card_id")
+    for c in cases:
+        assert all_keys(prompts.alert_payload(c)) <= allowed
+        text = prompts.render_alert(c)
+        assert c.alert_id not in text
+        for word in (*DROPPED, *truth_words):
+            assert f'"{word}"' not in text
+
+
+AGENT_ROOTS = ("stages",)  # the agent path starts here; its import closure is checked
+BANNED = ("truth", "baseline", "data", "features", "metrics", "cli")
+
+
+def package_imports(name: str) -> set[str]:
+    """`fraudreview` modules imported anywhere in a module (top level or inside functions)."""
+    tree = ast.parse((ROOT / "src" / "fraudreview" / f"{name}.py").read_text("utf-8"))
+    found: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            mods = [a.name for a in node.names]
+        elif isinstance(node, ast.ImportFrom):
+            mod = node.module or ""
+            mods = [mod] if mod != "fraudreview" else [f"fraudreview.{a.name}" for a in node.names]
+        else:
+            continue
+        found |= {m.split(".")[1] for m in mods if m.startswith("fraudreview.")}
+    return found
 
 
 @pytest.mark.safety
 def test_agent_modules_never_import_labels_or_the_baseline():
-    src = ROOT / "src" / "fraudreview"
-    for name in AGENT_MODULES:
-        tree = ast.parse((src / f"{name}.py").read_text("utf-8"))
-        for node in ast.walk(tree):
-            names: list[str] = []
-            if isinstance(node, ast.Import):
-                names = [a.name for a in node.names]
-            elif isinstance(node, ast.ImportFrom):
-                mod = node.module or ""
-                names = [mod] + [f"{mod}.{a.name}" for a in node.names]
-            for n in names:
-                for banned in ("fraudreview.truth", "fraudreview.baseline", "fraudreview.data"):
-                    assert not n.startswith(banned), f"{name} imports {n}"
+    seen: set[str] = set()
+    todo = list(AGENT_ROOTS)
+    while todo:  # the transitive closure of the agent path
+        name = todo.pop()
+        if name in seen:
+            continue
+        seen.add(name)
+        todo += sorted(package_imports(name) - seen)
+    assert {"stages", "prompts", "llm", "router", "policy", "schemas"} <= seen
+    assert not (seen & set(BANNED)), sorted(seen & set(BANNED))
 
 
 @pytest.mark.contract

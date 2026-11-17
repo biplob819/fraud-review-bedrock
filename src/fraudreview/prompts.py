@@ -21,7 +21,7 @@ from pydantic import BaseModel
 from fraudreview.policy import Policy
 from fraudreview.schemas import AlertCase, Stage1Output, Stage2Output
 
-PROMPTS_CODE_VERSION = "1"  # bump with any change to this module (code_versions.json)
+PROMPTS_CODE_VERSION = "2"  # bump with any change to this module (code_versions.json)
 
 # the only keys a rendered alert may hold (NFR2); everything else is refused
 ALERT_KEYS = ("ts_hour", "ts_dow", "category", "amount", "features", "risk_score")
@@ -47,11 +47,14 @@ not cleared.
 Rules:
 1. Return exactly one decision record in the required format: an action, one to five short
    reasons, the policy clause ids you relied on, the fields you used, and your confidence (0-1).
+   Where it helps, compare the purchase with the card's usual behaviour (amt_vs_usual,
+   category_freq, card_history_n).
 2. Cite only the fields listed in the glossary, and only values present in this alert. State
    numbers as they appear (for example "amount is 9.1 times the card's usual").
 3. Cite only clause ids that appear in the policy. Never invent a clause.
 4. Recommend clear only when a clear clause in the policy applies to this alert and no
-   never-auto-clear clause applies. When in doubt, do not clear.
+   never-auto-clear clause applies. When in doubt, or when the evidence points both ways,
+   do not clear.
 5. Never use gender, age, birth date, location or any other personal attribute as a reason.
    This alert does not contain them; do not guess them.
 6. You have no tools and cannot block a card or contact anyone. Your decision record is your

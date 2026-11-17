@@ -13,7 +13,7 @@ Haiku 5.5 screens each alert: it may recommend `clear` for an alert that is clea
 - `src/fraudreview/stages.py` (ST1-02):
   - `run_stage(stage, case, ctx)`: renders the prompt and looks it up in the cache. The key covers step, `STAGE_CODE_VERSION`, the allow-listed alert, model, effort, prompt hash, policy version and seed. On a miss it calls `llm.settled_call` and builds the decision with `to_decision`, which records provider, model, effort, hashes, tokens and cost. It stores every decision except transport failures, so a rerun retries those.
   - `needs_stage2(stage1, case, ctx)`: the hand-off. Only a clear that `router.check_clear` accepts ends the alert.
-- `code_versions.json` registers `stage1` and `stage2` (the `stages` module) and `prompts`, so a change to either needs a version bump.
+- `code_versions.json` registers `stages` and `prompts`, so a change to either needs a version bump. The cache key also covers the rendered alert text, the alert id, the provider, `max_output_tokens`, and the `prompts` and `model_call` code versions, so no change to what is sent or how a reply is handled can serve a stale decision.
 - `docs/measurements/stage1-sample.json`: a live stage-1 run on the first 10 dev alerts through `run_stage`, showing actions, router acceptance, tokens, cost and a cache hit on a rerun (under $0.02).
 
 ## Rules

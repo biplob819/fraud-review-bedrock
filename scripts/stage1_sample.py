@@ -17,7 +17,7 @@ from fraudreview import stages
 from fraudreview.cache import Store
 from fraudreview.cli import ROOT, load_env_file
 from fraudreview.config import load_config
-from fraudreview.cost import SpendCap
+from fraudreview.cost import SpendCap, estimate_run
 from fraudreview.doctor import price_table
 from fraudreview.ledger import append_spend
 from fraudreview.llm import make_client
@@ -39,6 +39,8 @@ async def main(n: int, out: Path) -> int:
         cap=cap,
         prices=price_table(ROOT / "prices.yaml", config.provider),
     )
+    prices = price_table(ROOT / "prices.yaml", config.provider)
+    planned = estimate_run(len(cases), prices, config).stage1_usd  # before any call (§9)
     first, calls = [], 0
     try:
         for c in cases:
@@ -52,9 +54,8 @@ async def main(n: int, out: Path) -> int:
             provider=config.provider,
             split="dev",
             calls=calls,
-            estimate_usd=sum(cap.reserved.values()) + cap.actual,
+            estimate_usd=planned,
             actual_usd=cap.actual,
-            note="the estimate equals the actual: reservations settle into actual spend",
         )
     again = [await stages.run_stage(1, c, ctx) for c in cases]
     rows = [

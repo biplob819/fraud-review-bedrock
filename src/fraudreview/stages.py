@@ -15,7 +15,7 @@ import json
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-from fraudreview import prompts
+from fraudreview import llm, prompts
 from fraudreview.cache import Store, cache_key
 from fraudreview.config import RunConfig
 from fraudreview.cost import SpendCap
@@ -24,7 +24,7 @@ from fraudreview.policy import Policy
 from fraudreview.router import RouterSettings, check_clear
 from fraudreview.schemas import AlertCase, TriageDecision
 
-STAGE_CODE_VERSION = "1"  # bump when this module's logic changes (code_versions.json)
+STAGE_CODE_VERSION = "2"  # bump when this module's logic changes (code_versions.json)
 
 
 @dataclass
@@ -51,7 +51,14 @@ async def run_stage(stage: Literal[1, 2], case: AlertCase, ctx: Context) -> Tria
     key = cache_key(
         step=f"stage{stage}",
         code_version=STAGE_CODE_VERSION,
-        inp=prompts.alert_payload(case),
+        inp={  # everything else that decides the call or how its reply is handled
+            "alert_id": case.alert_id,
+            "user": user,
+            "provider": ctx.config.provider,
+            "max_output_tokens": cfg.max_output_tokens,
+            "prompts_code_version": prompts.PROMPTS_CODE_VERSION,
+            "model_call_code_version": llm.CODE_VERSION,
+        },
         model=cfg.model,
         effort=cfg.effort,
         prompt_hash=phash,
@@ -61,7 +68,12 @@ async def run_stage(stage: Literal[1, 2], case: AlertCase, ctx: Context) -> Tria
     cached = ctx.store.get(key, STAGE_CODE_VERSION)
     if cached is not None:
         hit = TriageDecision.model_validate_json(json.dumps(cached))
-        if hit.alert_id != case.alert_id or hit.stage != stage:
+        if (
+            hit.alert_id != case.alert_id
+            or hit.stage != stage
+            or hit.provider != ctx.config.provider
+            or hit.model != cfg.model
+        ):
             raise ValueError(f"cache entry {key[:12]} belongs to another alert or stage")
         return hit.model_copy(update={"cache_hit": True})
     body = build_body(cfg, system, user, output_model)
