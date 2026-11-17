@@ -50,7 +50,13 @@ async def main(n: int, out: Path) -> int:
             results.append(t)
     finally:
         replayed = sum(t.decisions[0].cache_hit for t in results)
-        billed = "stage 1 replayed from the cache" if replayed else "both stages billed"
+        billed = (
+            "both stages billed"
+            if replayed == 0
+            else "stage 1 replayed from the cache"
+            if replayed == len(results)
+            else "stage 1 partly replayed from the cache"
+        )
         append_spend(
             ROOT / "docs" / "measurements" / "spend-ledger.jsonl",
             run_id="a2.4-stage2-sample",

@@ -1,11 +1,12 @@
 # A2.4 run state
 
-**Now:** building
+**Now:** green
 
 ## History
 - 2026-11-17 — started after A2.3 went green.
 - 2026-11-17 — verifier pass 1: two must-fix (the spec said stage 1 replayed from cache, but the stages code version moved 3 to 4, so both stages were billed; ST2-02's proof skipped transport). Fixed: the spec and the ledger note now say both stages were billed and why (the record already showed it); a transport failure after backoff through `triage_alert` is proven to escalate and be counted. The contract test now checks dispositions against rows, the cost sum, the ledger line and both latency orders. Not changed, to keep `stages` at code_version 4 (any edit to the module moves its version and its cache keys): a misplaced comment on `SCHEMAS_HASH`.
 - 2026-11-17 — verifier pass 2: one must-fix (the latency proof could not tell cached from live calls, since replays carry the same latency). Fixed: cached replays are given an extreme latency and must not move p50 or p95. Should-fix applied: the sample script's docstring and its ledger note now say which stage was billed, computed from the cache hits, and the committed ledger row uses that exact wording; the contract keys the stage-1 check on `decided_at_stage` and requires stage-2 errors to escalate.
+- 2026-11-17 — verifier pass 3: no must-fix; 13 behaviour breaks each failed the proofs, and a replay of the 10 sample alerts from the cache matched the record. Should-fix applied: the contract checks each row's final against its stage-2 action, the stage-1 cache hits against the ledger note, and the total under $0.15; the script names a partial stage-1 replay. Green.
 
 ## Open should-fix (carried forward)
 - The sample records no attempts per row (one stage call was retried: 19 billed calls for 18 decisions).

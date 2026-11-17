@@ -185,7 +185,9 @@ def test_committed_stage2_sample_is_consistent():
     ]
     line = [x for x in ledger if x["run_id"] == "a2.4-stage2-sample"][-1]
     assert line["actual_usd"] == pytest.approx(rec["total_billed_usd"], abs=1e-6)
-    assert rec["total_billed_usd"] >= rec["stage2_cost_usd"]
+    assert rec["stage2_cost_usd"] <= rec["total_billed_usd"] < 0.15
+    hits = rec["stage1_cache_hits"]
+    assert f"({hits} stage-1 cache hits)" in line["note"]
     for stage in rec["latency_ms"].values():
         assert stage["p50"] <= stage["p95"]
     for r in rec["rows"]:
@@ -194,6 +196,12 @@ def test_committed_stage2_sample_is_consistent():
             assert not r["refusals"]
         if r["decided_at_stage"] == 1:  # no stage 2: only an accepted stage-1 clear
             assert r["final"] == "auto_cleared" and r["stage2_action"] is None
+        if r["stage2_action"] is None and not r["stage2_error"]:
+            assert r["decided_at_stage"] == 1
+        if r["stage2_action"] in ("escalate", "hold"):  # the final follows the stage-2 action
+            assert r["final"] == r["stage2_action"]
+        if r["final"] == "auto_cleared" and r["decided_at_stage"] == 2:
+            assert r["stage2_action"] == "clear" and r["stage2_confidence"] >= 0.7
         if r["stage2_error"]:
             assert r["final"] == "escalate"
     assert set(rec["errors"]) == {"schema", "refusal", "transport"}
