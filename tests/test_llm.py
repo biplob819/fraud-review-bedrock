@@ -44,7 +44,7 @@ def status_error(code: int) -> anthropic.APIStatusError:
         429: anthropic.RateLimitError,
         500: anthropic.InternalServerError,
         529: anthropic.InternalServerError,
-    }[code]
+    }.get(code, anthropic.APIStatusError)
     return cls(
         "sk-ant-supersecret in message", response=httpx2.Response(code, request=REQ), body=None
     )
@@ -119,6 +119,20 @@ def test_body_is_schema_constrained_cached_and_has_no_tools_or_sampling():
 
 @pytest.mark.safety
 def test_every_send_is_guarded_and_a_tool_body_never_leaves():
+    class Mutating(Script):  # a body that gains a tool between attempts is refused on retry
+        async def create(self, **b: Any) -> Any:
+            self.bodies.append(b)
+            if len(self.bodies) == 1:
+                shared["output_config"]["tools"] = [{"name": "block_card"}]
+                raise status_error(529)
+            return reply()
+
+    shared = body()
+    sneaky = Mutating()
+    with pytest.raises(GuardError):
+        run(sneaky, shared)
+    assert len(sneaky.bodies) == 1  # the second send never happened
+
     client = Script(reply())
     bad = {**body(), "tools": [{"name": "block_card"}]}
     with pytest.raises(GuardError):
@@ -191,6 +205,35 @@ def test_config_errors_raise_exit_2_never_transport_and_show_no_secret():
         assert "supersecret" not in str(exc.value) and exc.value.__cause__ is None
     with pytest.raises(KeyError):  # an unknown bug is not swallowed as transport
         run(Script(KeyError("x")))
+    for missing in (
+        TypeError("Could not resolve authentication method. Expected api_key to be set"),
+        RuntimeError("Could not resolve AWS credentials from session"),
+        anthropic.AnthropicError("No AWS region found"),
+        status_error(402),
+    ):
+        with pytest.raises(llm.ProviderConfigError):
+            run(Script(missing))
+
+
+def test_missing_key_is_named_before_any_call(monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    with pytest.raises(llm.ProviderConfigError, match="ANTHROPIC_API_KEY"):
+        llm.make_client(CONFIG)
+
+
+def test_cli_maps_config_errors_to_2_and_the_cap_to_3(monkeypatch, capsys):
+    from fraudreview import cli
+
+    def config_error(_: Any) -> int:
+        raise llm.ProviderConfigError("ANTHROPIC_API_KEY is not set (put it in .env)")
+
+    def cap(_: Any) -> int:
+        raise cost.CapReached("spend would pass the $5 cap")
+
+    monkeypatch.setattr(cli, "_doctor", config_error)
+    assert cli.main(["doctor"]) == 2 and "ANTHROPIC_API_KEY" in capsys.readouterr().err
+    monkeypatch.setattr(cli, "_doctor", cap)
+    assert cli.main(["doctor"]) == 3 and "cached" in capsys.readouterr().err
 
 
 # ------------------------------------------------------------------ BRK-03 cache
@@ -263,7 +306,7 @@ def test_concurrent_writers_leave_exactly_one_entry(tmp_path):
 
 @pytest.mark.contract
 def test_registered_steps_match_their_code_versions(tmp_path):
-    steps = {"model_call": ("1", llm.call_model)}
+    steps = {"model_call": ("1", llm)}  # the whole module: helpers and constants count
     assert cache.code_version_problems(steps) == []
     reg = tmp_path / "r.json"
     reg.write_text(
@@ -271,8 +314,8 @@ def test_registered_steps_match_their_code_versions(tmp_path):
         encoding="utf-8",
     )
     assert "bump code_version" in cache.code_version_problems(steps, reg)[0]
-    assert "stale" in cache.code_version_problems({"model_call": ("2", llm.call_model)}, reg)[0]
-    assert "not in" in cache.code_version_problems({"x": ("1", llm.call_model)}, reg)[0]
+    assert "stale" in cache.code_version_problems({"model_call": ("2", llm)}, reg)[0]
+    assert "not in" in cache.code_version_problems({"x": ("1", llm)}, reg)[0]
 
 
 # ------------------------------------------------------------------ BRK-04 cost
@@ -302,6 +345,27 @@ def test_estimate_follows_section_9():
         cost.estimate_run(10, PRICES, CONFIG, cost.Assumptions(stage2_share=1.5))
 
 
+def test_worst_case_reservation_bounds_any_bill_and_commit_stops_overspend():
+    price = PRICES["claude-sonnet-5-5"]
+    b = body(2)
+    worst = llm.worst_case_cost(b, price)
+    chars = len(json.dumps(b, ensure_ascii=False))
+    # the dearest possible call: two attempts, all input written to cache, full max_tokens
+    bill = 2 * cost.call_cost(Tokens(input=0, output=8192, cache_write=chars), price)
+    assert worst >= bill > 0
+
+    async def main() -> None:
+        cap = cost.SpendCap(1.0)
+        t1 = await cap.reserve(0.5)
+        with pytest.raises(cost.CapReached):
+            await cap.commit(t1, 1.2)  # recorded, then the run stops
+        assert cap.actual == pytest.approx(1.2)
+        with pytest.raises(cost.CapReached):
+            await cap.reserve(0.0001)
+
+    asyncio.run(main())
+
+
 def test_spend_cap_reserves_before_spending_and_cannot_overshoot():
     async def main() -> None:
         cap = cost.SpendCap(1.0)
@@ -327,10 +391,13 @@ def test_spend_cap_reserves_before_spending_and_cannot_overshoot():
 def test_dry_run_prints_estimate_makes_no_call_and_refuses_over_cap(capsys, monkeypatch):
     from fraudreview import cli
 
-    def no_client(*_: Any) -> Any:
+    def no_client(*_: Any, **__: Any) -> Any:
         raise AssertionError("dry run built a client")
 
-    monkeypatch.setattr(llm, "make_client", no_client)
+    from anthropic.lib.bedrock import _mantle
+
+    monkeypatch.setattr(anthropic, "AsyncAnthropic", no_client)
+    monkeypatch.setattr(_mantle, "AsyncAnthropicBedrockMantle", no_client)
     base = ["triage", "--config", str(ROOT / "config.yaml"), "--prices", str(ROOT / "prices.yaml")]
     assert cli.main([*base, "--split", "dev", "--alerts", "100", "--dry-run"]) == 0
     out = capsys.readouterr().out

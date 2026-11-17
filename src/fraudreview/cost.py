@@ -82,8 +82,10 @@ def estimate_run(
 
 
 class SpendCap:
-    """Before each call: actual + reserved + this call's estimate must stay at or under the cap.
-    Reserve the slot before spending (L-12); settle every reservation exactly once (L-14)."""
+    """Before each call: actual + reserved + this call's reservation must stay at or under the
+    cap. Callers reserve `llm.worst_case_cost`, the most a call can bill, so actual spend cannot
+    pass the cap; `commit` stops the run if it ever does. Reserve the slot before spending
+    (L-12); settle every reservation exactly once (L-14)."""
 
     def __init__(self, max_usd: float) -> None:
         if not max_usd > 0:
@@ -108,9 +110,13 @@ class SpendCap:
             return self._next
 
     async def commit(self, token: int, actual_usd: float) -> None:
+        """Settle a reservation with what the call billed. If spend has passed the cap anyway
+        (a reservation smaller than the bill), record it and stop the run (CapReached)."""
         async with self._lock:
             self.reserved.pop(token)  # KeyError on a double or unknown settle
             self.actual += actual_usd
+            if self.actual > self.max_usd:
+                raise CapReached(f"spend ${self.actual:.4f} passed the ${self.max_usd:g} cap")
 
     async def release(self, token: int) -> None:
         async with self._lock:

@@ -17,7 +17,7 @@ import inspect
 import json
 import os
 import tempfile
-from collections.abc import Callable, Mapping
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -110,16 +110,18 @@ class Store:
             os.unlink(tmp)
 
 
-def source_hash(fn: Callable[..., Any]) -> str:
-    return hashlib.sha256(inspect.getsource(fn).encode("utf-8")).hexdigest()
+def source_hash(obj: Any) -> str:
+    """sha256 of the source of a function or a whole module. Register the module that holds a
+    step's logic, so a change to any helper or constant needs a code_version bump."""
+    return hashlib.sha256(inspect.getsource(obj).encode("utf-8")).hexdigest()
 
 
 def code_version_problems(
-    steps: Mapping[str, tuple[str, Callable[..., Any]]], registry: Path = REGISTRY
+    steps: Mapping[str, tuple[str, Any]], registry: Path = REGISTRY
 ) -> list[str]:
-    """`steps` maps a step name to (its code_version, the function holding its logic). A step is a
-    problem when it is missing from the registry, or its source hash changed while its
-    code_version stayed the same."""
+    """`steps` maps a step name to (its code_version, the module or function holding its
+    logic). A step is a problem when it is missing from the registry, or its source hash changed
+    while its code_version stayed the same."""
     recorded = json.loads(registry.read_text(encoding="utf-8"))
     problems = []
     for name, (version, fn) in sorted(steps.items()):

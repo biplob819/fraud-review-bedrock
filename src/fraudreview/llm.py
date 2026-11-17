@@ -97,8 +97,11 @@ def _add(a: Tokens, b: Tokens) -> Tokens:
     )
 
 
+CREDENTIAL_WORDS = ("authentication", "credential", "api_key", "api key", "region")
+
+
 def _classify(exc: BaseException) -> Literal["transient", "config"] | None:
-    """Sort an SDK exception: retry it, stop the run (exit 2), or neither (re-raise)."""
+    """Sort an exception from a send: retry it, stop the run (exit 2), or neither (re-raise)."""
     import anthropic
 
     if isinstance(exc, anthropic.APIConnectionError):  # includes timeouts
@@ -107,8 +110,13 @@ def _classify(exc: BaseException) -> Literal["transient", "config"] | None:
         status = exc.status_code
         if status in (408, 409, 429) or status >= 500:  # 529 is overload
             return "transient"
-        if status in (400, 401, 403, 404, 413, 422):
-            return "config"
+        return "config"  # every other 4xx: our request, key, model or account
+    if isinstance(exc, anthropic.AnthropicError):  # client-side, e.g. no Region resolved
+        return "config"
+    if isinstance(exc, (TypeError, RuntimeError)) and any(
+        w in str(exc).lower() for w in CREDENTIAL_WORDS
+    ):  # the SDKs raise these when no key or AWS credentials can be resolved
+        return "config"
     return None
 
 
@@ -164,8 +172,9 @@ async def call_model(
             seen.append(type(exc).__name__)
             if kind == "config":
                 raise ProviderConfigError(
-                    f"the provider refused the request ({type(exc).__name__}); check the key, "
-                    "model id and config"
+                    f"the provider refused the request ({type(exc).__name__}); check "
+                    "ANTHROPIC_API_KEY (provider anthropic) or the AWS profile (provider "
+                    "bedrock), the model id and config.yaml"
                 ) from None
             if kind != "transient":
                 raise
@@ -197,12 +206,35 @@ def make_client(config: RunConfig) -> Any:
     """The async client for the configured provider, with SDK retries off (§2.4 is the policy).
     The Claude API key comes from ANTHROPIC_API_KEY; Bedrock uses the AWS profile."""
     if config.provider == "anthropic":
+        import os
+
         import anthropic
 
+        if not os.environ.get("ANTHROPIC_API_KEY"):
+            raise ProviderConfigError("ANTHROPIC_API_KEY is not set (put it in .env)")
         return anthropic.AsyncAnthropic(max_retries=0)
     from anthropic.lib.bedrock._mantle import AsyncAnthropicBedrockMantle
 
-    return AsyncAnthropicBedrockMantle(aws_region=config.region, max_retries=0)
+    try:
+        return AsyncAnthropicBedrockMantle(aws_region=config.region, max_retries=0)
+    except Exception as exc:
+        raise ProviderConfigError(
+            f"could not build the Bedrock client ({type(exc).__name__}); run `aws login` and "
+            "set AWS_PROFILE"
+        ) from None
+
+
+def worst_case_cost(body: dict[str, Any], price: dict[str, float]) -> float:
+    """The most one `call_model` can bill: every schema attempt with the whole body as input at
+    the dearer of the input and cache-write prices (a token is at least one character), and a
+    full `max_tokens` reply. Reserving this keeps actual spend under the cap (BRK-05)."""
+    import json
+
+    chars = len(json.dumps(body, ensure_ascii=False))
+    per_attempt = (
+        chars * max(price["input"], price["cache_write_5m"]) + body["max_tokens"] * price["output"]
+    )
+    return MAX_SCHEMA_ATTEMPTS * per_attempt / 1e6
 
 
 def to_decision(

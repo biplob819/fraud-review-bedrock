@@ -257,6 +257,22 @@ def _load(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Exit codes (§4.3): 0 ok, 1 a threshold failed, 2 configuration or runtime error, 3 the
+    spend cap stopped the run (completed work is cached; rerun to resume)."""
+    from fraudreview.cost import CapReached
+    from fraudreview.llm import ProviderConfigError
+
+    try:
+        return _dispatch(argv)
+    except ProviderConfigError as exc:
+        print(f"fraud: {exc}", file=sys.stderr)
+        return 2
+    except CapReached as exc:
+        print(f"fraud: stopped at the spend cap: {exc}; completed work is cached", file=sys.stderr)
+        return 3
+
+
+def _dispatch(argv: list[str] | None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     if args.command == "load":
