@@ -17,7 +17,7 @@ from fraudreview.config import load_config
 from fraudreview.cost import SpendCap
 from fraudreview.doctor import price_table
 from fraudreview.ledger import append_spend
-from fraudreview.llm import build_body, make_client, settled_call, worst_case_cost
+from fraudreview.llm import build_body, check_price, make_client, settled_call, worst_case_cost
 from fraudreview.schemas import Stage1Output, Stage2Output
 
 ALERT = {
@@ -58,6 +58,7 @@ async def main(out: Path) -> int:
             (2, config.stage2, Stage2Output),
         ):
             body = build_body(cfg, [SYSTEM, policy], json.dumps(ALERT), model)
+            check_price(prices.get(cfg.model))  # before any arithmetic on it
             reserved_total += worst_case_cost(body, prices[cfg.model])
             spent_before = cap.actual
             try:

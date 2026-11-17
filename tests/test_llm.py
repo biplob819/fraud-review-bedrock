@@ -592,7 +592,7 @@ def test_spend_cap_reserves_before_spending_and_cannot_overshoot():
 
 
 @pytest.mark.contract
-def test_dry_run_prints_estimate_makes_no_call_and_refuses_over_cap(capsys, monkeypatch):
+def test_dry_run_prints_estimate_makes_no_call_and_refuses_over_cap(capsys, monkeypatch, tmp_path):
     from fraudreview import cli
 
     def no_client(*_: Any, **__: Any) -> Any:
@@ -609,6 +609,15 @@ def test_dry_run_prints_estimate_makes_no_call_and_refuses_over_cap(capsys, monk
     assert cli.main([*base, "--split", "eval", "--alerts", "500", "--dry-run"]) == 2
     assert "over max_cost_usd" in capsys.readouterr().err
     assert cli.main([*base, "--split", "dev", "--alerts", "5"]) == 2  # live arrives in A2.5
+    bad = ROOT / "prices.yaml"
+    import yaml
+
+    data = yaml.safe_load(bad.read_text(encoding="utf-8"))
+    data["providers"]["anthropic"]["models"]["claude-sonnet-5-5"]["output"] = float("nan")
+    nan_prices = tmp_path / "p.yaml"
+    nan_prices.write_text(yaml.safe_dump(data), encoding="utf-8")
+    nan_cmd = ["triage", "--config", str(ROOT / "config.yaml"), "--prices", str(nan_prices)]
+    assert cli.main([*nan_cmd, "--split", "dev", "--alerts", "5", "--dry-run"]) == 2
 
 
 # ------------------------------------------------------------------ BRK-06 ledger

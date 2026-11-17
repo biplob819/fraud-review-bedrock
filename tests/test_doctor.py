@@ -425,7 +425,7 @@ def test_record_preflight_proves_schema_cache_limits_and_cost():
     assert not cold["models"][API_HAIKU]["cache"]["second_read_cache"]
 
 
-def test_cli_record_writes_proof_and_refuses_quietly_bad_paths(tmp_path, capsys, monkeypatch):
+def test_cli_record_writes_proof_and_refuses_quietly_bad_paths(tmp_path, capsys):
     import argparse
 
     from fraudreview import cli
@@ -434,12 +434,8 @@ def test_cli_record_writes_proof_and_refuses_quietly_bad_paths(tmp_path, capsys,
     args = argparse.Namespace(
         config=ROOT / "config.yaml", prices=ROOT / "prices.yaml", record=out, offline=False
     )
-    (tmp_path / "policy.md").write_text((ROOT / "policy.md").read_text("utf-8"), "utf-8")
-    monkeypatch.setattr(cli, "ROOT", tmp_path)  # the ledger line lands in tmp
     assert cli._record(args, client_factory=FakeRecorder) == 0
     assert json.loads(out.read_text(encoding="utf-8"))["provider"] == "anthropic"
-    line = json.loads((tmp_path / "docs/measurements/spend-ledger.jsonl").read_text("utf-8"))
-    assert line["run_id"] == "preflight-record" and line["calls"] == 6 and line["note"]
 
     class Boom(FakeRecorder):
         def create(self, **kw: Any) -> Any:

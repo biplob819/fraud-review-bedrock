@@ -174,18 +174,6 @@ def _record(args: argparse.Namespace, client_factory: Callable[[], Any] | None =
         return 1
     args.record.parent.mkdir(parents=True, exist_ok=True)
     args.record.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    from fraudreview.ledger import LEDGER, append_spend
-
-    append_spend(
-        ROOT / LEDGER,
-        run_id="preflight-record",
-        provider=config.provider,
-        split="preflight",
-        calls=sum(len(m["calls"]) for m in report["models"].values()),
-        estimate_usd=report["total_cost_usd"],
-        actual_usd=report["total_cost_usd"],
-        note="fraud doctor --record; the estimate is the recorded cost (no reservation)",
-    )
     print(f"recorded {args.record} (about ${report['total_cost_usd']:.4f})")
     return 0
 
