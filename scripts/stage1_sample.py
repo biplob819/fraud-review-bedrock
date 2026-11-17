@@ -41,13 +41,17 @@ async def main(n: int, out: Path) -> int:
     )
     prices = price_table(ROOT / "prices.yaml", config.provider)
     planned = estimate_run(len(cases), prices, config).stage1_usd  # before any call (§9)
-    first, calls = [], 0
+    first, again, calls = [], [], 0
     try:
         for c in cases:
             d = await stages.run_stage(1, c, ctx)
             calls += 0 if d.cache_hit else d.attempts
             first.append((d, stages.needs_stage2(d, c, ctx)))
-    finally:
+        for c in cases:  # the rerun: every call should be a cache hit
+            d = await stages.run_stage(1, c, ctx)
+            calls += 0 if d.cache_hit else d.attempts
+            again.append(d)
+    finally:  # one line for everything the cap recorded, rerun included
         append_spend(
             ROOT / "docs" / "measurements" / "spend-ledger.jsonl",
             run_id="a2.3-stage1-sample",
@@ -57,7 +61,6 @@ async def main(n: int, out: Path) -> int:
             estimate_usd=planned,
             actual_usd=cap.actual,
         )
-    again = [await stages.run_stage(1, c, ctx) for c in cases]
     rows = [
         {
             "action": d.output.action if d.output else None,

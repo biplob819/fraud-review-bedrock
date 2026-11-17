@@ -223,6 +223,30 @@ def test_cache_key_covers_everything_that_decides_the_call(tmp_path, monkeypatch
     cx.config = bigger
     go(1, ROUTINE, cx)
     assert len(fake.bodies) == 5  # a different output limit: a miss
+    monkeypatch.setattr(prompts, "PROMPTS_CODE_VERSION", "999")
+    go(1, ROUTINE, cx)
+    assert len(fake.bodies) == 6  # the prompt module's version changed: a miss
+    monkeypatch.undo()
+    monkeypatch.setattr(stages, "SCHEMAS_HASH", "0" * 16)
+    fake.replies.append(reply("pass"))
+    go(1, ROUTINE, cx)
+    assert len(fake.bodies) == 7  # the reply validators changed: a miss
+    monkeypatch.undo()
+    other = Fake(reply("pass"))
+    cx.client = other
+    cx.config = bigger.model_copy(update={"provider": "bedrock"})
+    go(1, ROUTINE, cx)
+    assert len(other.bodies) == 1  # another provider: a miss, never the other's decision
+
+
+def test_a_cache_entry_for_another_alert_is_refused(tmp_path, monkeypatch):
+    fake = Fake(reply("pass"), reply("pass"))
+    cx = ctx(tmp_path, fake)
+    go(1, ROUTINE, cx)
+    monkeypatch.setattr(stages, "cache_key", lambda **_: "e" * 64)  # force a collision
+    cx.store.put("e" * 64, stages.STAGE_CODE_VERSION, go(1, ROUTINE, cx).model_dump(mode="json"))
+    with pytest.raises(ValueError, match="another alert"):
+        go(1, RISKY, cx)
 
 
 # ------------------------------------------------------------------ ST1-03 prompt safety

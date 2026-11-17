@@ -15,8 +15,8 @@ import json
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-from fraudreview import llm, prompts
-from fraudreview.cache import Store, cache_key
+from fraudreview import llm, prompts, schemas
+from fraudreview.cache import Store, cache_key, source_hash
 from fraudreview.config import RunConfig
 from fraudreview.cost import SpendCap
 from fraudreview.llm import build_body, settled_call, to_decision
@@ -24,7 +24,10 @@ from fraudreview.policy import Policy
 from fraudreview.router import RouterSettings, check_clear
 from fraudreview.schemas import AlertCase, TriageDecision
 
-STAGE_CODE_VERSION = "2"  # bump when this module's logic changes (code_versions.json)
+STAGE_CODE_VERSION = "3"
+SCHEMAS_HASH = source_hash(schemas)[
+    :16
+]  # bump when this module's logic changes (code_versions.json)
 
 
 @dataclass
@@ -58,6 +61,7 @@ async def run_stage(stage: Literal[1, 2], case: AlertCase, ctx: Context) -> Tria
             "max_output_tokens": cfg.max_output_tokens,
             "prompts_code_version": prompts.PROMPTS_CODE_VERSION,
             "model_call_code_version": llm.CODE_VERSION,
+            "schemas_source": SCHEMAS_HASH,  # validators the JSON schema cannot express
         },
         model=cfg.model,
         effort=cfg.effort,
