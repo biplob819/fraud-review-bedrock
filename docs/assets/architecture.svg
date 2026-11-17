@@ -73,14 +73,14 @@
   <text x="506" y="196" class="s">Haiku 5.5 and Sonnet 5.5 ids</text>
   <text x="506" y="224" class="note">supported, not run (D-27, D-34)</text>
   <path d="M400 168 H486" class="dash"/>
-  <text x="446" y="156" class="note" text-anchor="middle">optional</text>
+  <text x="434" y="156" class="note" text-anchor="middle">optional</text>
 
   <!-- proposed: hosted demo -->
   <rect x="840" y="134" width="250" height="122" class="box eval"/>
   <text x="856" y="158" class="h">Hosted demo: Lambda</text>
   <text x="856" y="178" class="s">function URL; passkey sign-in</text>
-  <text x="856" y="196" class="s">for everyone; replay, or live</text>
-  <text x="856" y="214" class="s">triage under the spend cap</text>
+  <text x="856" y="196" class="s">for everyone; replay, or live triage</text>
+  <text x="856" y="214" class="s">(owner passcode or own key)</text>
   <text x="856" y="242" class="note">proposed (D-31)</text>
 
   <rect x="1120" y="134" width="220" height="122" class="box eval"/>
@@ -94,7 +94,7 @@
   <!-- proposed pilot workflow inside IAM boundary -->
   <rect x="490" y="280" width="850" height="340" rx="12" class="gate"/>
   <text x="508" y="304" class="iam">IAM boundary: pilot workflow role (proposed)</text>
-  <text x="508" y="322" class="note">May invoke only the two Bedrock models, through a VPC endpoint. No permission on any card system.</text>
+  <text x="508" y="322" class="note">May invoke only the two in-Region Bedrock models. No permission on any card system.</text>
 
   <rect x="510" y="340" width="160" height="80" class="box eval"/>
   <text x="526" y="366" class="h">Amazon S3</text>
@@ -156,5 +156,5 @@
   <rect x="60" y="874" width="34" height="18" class="box agent"/>
   <text x="106" y="888" class="s"><tspan font-weight="600">Supported (not run):</tspan> Amazon Bedrock through the in-Region Mantle endpoint in us-east-2</text>
   <rect x="60" y="898" width="34" height="18" class="box eval"/>
-  <text x="106" y="912" class="s"><tspan font-weight="600">Proposed (pilot):</tspan> every AWS-managed service drawn here, including the passkey-protected hosted demo. Amber dashes mark the IAM boundary.</text>
+  <text x="106" y="912" class="s"><tspan font-weight="600">Proposed (pilot):</tspan> every other AWS service drawn here, including the passkey-protected hosted demo. Amber dashes mark the IAM boundary.</text>
 </svg>
