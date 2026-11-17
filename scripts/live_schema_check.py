@@ -14,10 +14,10 @@ from pathlib import Path
 
 from fraudreview.cli import ROOT, load_env_file
 from fraudreview.config import load_config
-from fraudreview.cost import SpendCap, call_cost
+from fraudreview.cost import SpendCap
 from fraudreview.doctor import price_table
 from fraudreview.ledger import append_spend
-from fraudreview.llm import build_body, call_model, make_client, worst_case_cost
+from fraudreview.llm import billed_cost, build_body, call_model, make_client, worst_case_cost
 from fraudreview.schemas import Stage1Output, Stage2Output
 
 ALERT = {
@@ -51,36 +51,43 @@ async def main(out: Path) -> int:
     record: dict[str, object] = {"provider": config.provider, "stages": {}}
     total = reserved_total = 0.0
     cap = SpendCap(config.max_cost_usd)
-    for stage, cfg, model in ((1, config.stage1, Stage1Output), (2, config.stage2, Stage2Output)):
-        body = build_body(cfg, [SYSTEM, policy], json.dumps(ALERT), model)
-        reserve = worst_case_cost(body, prices[cfg.model])
-        reserved_total += reserve
-        token = await cap.reserve(reserve)
-        result = await call_model(client, body, model)
-        usd = call_cost(result.tokens, prices[cfg.model])
-        await cap.commit(token, usd)
-        total += usd
-        record["stages"][f"stage{stage}"] = {  # type: ignore[index]
-            "model": cfg.model,
-            "effort": cfg.effort,
-            "schema": model.__name__,
-            "accepted_and_valid": result.error is None and isinstance(result.output, model),
-            "error": result.error,
-            "attempts": result.attempts,
-            "action": getattr(result.output, "action", None),
-            "tokens": result.tokens.model_dump(),
-            "cost_usd": round(usd, 6),
-        }
+    attempts = 0
+    try:
+        for stage, cfg, model in (
+            (1, config.stage1, Stage1Output),
+            (2, config.stage2, Stage2Output),
+        ):
+            body = build_body(cfg, [SYSTEM, policy], json.dumps(ALERT), model)
+            reserve = worst_case_cost(body, prices[cfg.model])
+            reserved_total += reserve
+            token = await cap.reserve(reserve)
+            result = await call_model(client, body, model)
+            attempts += result.attempts
+            usd = billed_cost(result.tokens, result.unmetered, body, prices[cfg.model])
+            await cap.commit(token, usd)
+            total += usd
+            record["stages"][f"stage{stage}"] = {  # type: ignore[index]
+                "model": cfg.model,
+                "effort": cfg.effort,
+                "schema": model.__name__,
+                "accepted_and_valid": result.error is None and isinstance(result.output, model),
+                "error": result.error,
+                "attempts": result.attempts,
+                "action": getattr(result.output, "action", None),
+                "tokens": result.tokens.model_dump(),
+                "cost_usd": round(usd, 6),
+            }
+    finally:  # a line for whatever was billed, even if a later stage failed
+        append_spend(
+            ROOT / "docs" / "measurements" / "spend-ledger.jsonl",
+            run_id="n1.3-schema-check",
+            provider=config.provider,
+            split="smoke",
+            calls=attempts,
+            estimate_usd=reserved_total,
+            actual_usd=total,
+        )
     record["total_cost_usd"] = round(total, 6)
-    append_spend(
-        ROOT / "docs" / "measurements" / "spend-ledger.jsonl",
-        run_id="n1.3-schema-check",
-        provider=config.provider,
-        split="smoke",
-        calls=sum(s["attempts"] for s in record["stages"].values()),  # type: ignore[union-attr]
-        estimate_usd=reserved_total,
-        actual_usd=total,
-    )
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     ok = all(s["accepted_and_valid"] for s in record["stages"].values())  # type: ignore[union-attr]

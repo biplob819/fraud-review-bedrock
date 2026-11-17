@@ -25,6 +25,7 @@ def append_spend(
     estimate_usd: float,
     actual_usd: float,
     at: datetime | None = None,
+    note: str | None = None,
 ) -> dict[str, object]:
     if calls < 0 or not (estimate_usd >= 0 and actual_usd >= 0):
         raise ValueError("calls and costs must be non-negative numbers")
@@ -37,6 +38,8 @@ def append_spend(
         "estimate_usd": round(estimate_usd, 6),
         "actual_usd": round(actual_usd, 6),
     }
+    if note:
+        line["note"] = note  # e.g. a line written after the run, or with no reservation
     data = (json.dumps(line, sort_keys=True, allow_nan=False) + "\n").encode("utf-8")
     path.parent.mkdir(parents=True, exist_ok=True)
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o644)

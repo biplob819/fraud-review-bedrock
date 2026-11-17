@@ -8,6 +8,7 @@ include thinking. Cache writes are priced at the 5-minute rate, the default TTL.
 from __future__ import annotations
 
 import asyncio
+import math
 from collections.abc import Awaitable, Callable, Iterable, Mapping
 from dataclasses import dataclass
 
@@ -112,8 +113,13 @@ class SpendCap:
     async def commit(self, token: int, actual_usd: float) -> None:
         """Settle a reservation with what the call billed. If spend has passed the cap anyway
         (a reservation smaller than the bill), record it and stop the run (CapReached)."""
-        if not (isinstance(actual_usd, int | float) and actual_usd >= 0):  # NaN fails too
-            raise ValueError("an actual cost is a non-negative number")
+        if (
+            isinstance(actual_usd, bool)
+            or not isinstance(actual_usd, int | float)
+            or not math.isfinite(actual_usd)
+            or actual_usd < 0
+        ):
+            raise ValueError("an actual cost is a finite non-negative number")
         async with self._lock:
             self.reserved.pop(token)  # KeyError on a double or unknown settle
             self.actual += actual_usd

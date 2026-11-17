@@ -33,7 +33,13 @@ BACKOFF_CAP_S = 30.0
 
 class ProviderConfigError(Exception):
     """Authentication, permission, unknown model or a request the API refuses as malformed.
-    The CLI maps it to exit 2; it is never a `transport` error (EvalKit L-21)."""
+    The CLI maps it to exit 2; it is never a `transport` error (EvalKit L-21). `tokens` and
+    `unmetered` carry what earlier attempts of the same call billed, so it can still be settled."""
+
+    def __init__(self, message: str, tokens: Tokens | None = None, unmetered: int = 0) -> None:
+        super().__init__(message)
+        self.tokens = tokens or Tokens(input=0, output=0)
+        self.unmetered = unmetered
 
 
 @dataclass
@@ -46,6 +52,7 @@ class CallResult:
     latency_ms: int
     stop_reason: str | None = None
     errors_seen: list[str] = field(default_factory=list)  # exception type names, oldest first
+    unmetered: int = 0  # billed replies whose usage could not be read (an unparseable 200)
 
 
 def build_body(
@@ -101,14 +108,14 @@ def _add(a: Tokens, b: Tokens) -> Tokens:
 CREDENTIAL_PHRASES = ("could not resolve authentication", "could not resolve aws credentials")
 
 
-def _classify(exc: BaseException) -> Literal["transient", "config"] | None:
+def _classify(exc: BaseException) -> Literal["transient", "config", "invalid"] | None:
     """Sort an exception from a send: retry it, stop the run (exit 2), or neither (re-raise)."""
     import anthropic
 
     if isinstance(exc, anthropic.APIConnectionError):  # includes timeouts
         return "transient"
-    if isinstance(exc, anthropic.APIResponseValidationError):  # an unparseable 200: retry
-        return "transient"
+    if isinstance(exc, anthropic.APIResponseValidationError):  # a billed 200 we cannot read
+        return "invalid"
     if isinstance(exc, anthropic.APIStatusError):
         status = exc.status_code
         if status in (408, 409, 429) or status >= 500:  # 529 is overload
@@ -159,6 +166,7 @@ async def call_model(
     request_id: str | None = None
     stop_reason: str | None = None
     seen: list[str] = []
+    unmetered = 0
 
     def done(output: BaseModel | None, error: ErrorKind | None) -> CallResult:
         return CallResult(
@@ -170,6 +178,7 @@ async def call_model(
             latency_ms=max(0, int((clock() - started) * 1000)),
             stop_reason=stop_reason,
             errors_seen=seen,
+            unmetered=unmetered,
         )
 
     while True:
@@ -186,8 +195,16 @@ async def call_model(
                 raise ProviderConfigError(
                     f"the provider refused the request ({where}{type(exc).__name__}); check "
                     "ANTHROPIC_API_KEY (provider anthropic) or the AWS profile (provider "
-                    "bedrock), the model id and config.yaml"
+                    "bedrock), the model id and config.yaml",
+                    tokens=tokens,
+                    unmetered=unmetered,
                 ) from None
+            if kind == "invalid":  # billed but unreadable: an invalid reply, priced as worst
+                unmetered += 1
+                schema_failures += 1
+                if schema_failures >= MAX_SCHEMA_ATTEMPTS:
+                    return done(None, "schema")
+                continue
             if kind != "transient":
                 raise
             transport_failures += 1
@@ -234,6 +251,16 @@ def make_client(config: RunConfig) -> Any:
             f"could not build the Bedrock client ({type(exc).__name__}); run `aws login` and "
             "set AWS_PROFILE"
         ) from None
+
+
+def billed_cost(
+    tokens: Tokens, unmetered: int, body: dict[str, Any], price: dict[str, float]
+) -> float:
+    """What a call billed: its metered tokens, plus the worst case for each billed reply whose
+    usage could not be read, so unread replies still count against the cap and the ledger."""
+    from fraudreview.cost import call_cost
+
+    return call_cost(tokens, price) + unmetered * worst_case_cost(body, price) / MAX_SCHEMA_ATTEMPTS
 
 
 def worst_case_cost(body: dict[str, Any], price: dict[str, float]) -> float:

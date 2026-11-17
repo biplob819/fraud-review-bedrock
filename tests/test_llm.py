@@ -228,8 +228,15 @@ def test_aws_credential_errors_are_config_and_bugs_are_not_hidden():
     bad_200 = anthropic.APIResponseValidationError(
         response=httpx2.Response(200, request=REQ), body=None
     )
-    recovered = run(Script(bad_200, reply()))
-    assert recovered.error is None and recovered.attempts == 2
+    recovered = run(Script(bad_200, reply()))  # billed but unreadable: an invalid reply
+    assert recovered.error is None and recovered.attempts == 2 and recovered.unmetered == 1
+    lost = run(Script(bad_200, bad_200, reply()))
+    assert lost.error == "schema" and lost.unmetered == 2
+    b, price = body(), PRICES["claude-haiku-5-5"]
+    assert llm.billed_cost(lost.tokens, 2, b, price) == pytest.approx(llm.worst_case_cost(b, price))
+    with pytest.raises(llm.ProviderConfigError) as err:  # earlier billed tokens are kept
+        run(Script(reply("not json", output_tokens=40), status_error(400)))
+    assert err.value.tokens.output == 40
 
 
 def test_missing_key_is_named_before_any_call(monkeypatch):
@@ -381,7 +388,7 @@ def test_worst_case_reservation_bounds_any_bill_and_commit_stops_overspend():
             await cap.reserve(0.0001)
         fresh = cost.SpendCap(1.0)
         t2 = await fresh.reserve(0.1)
-        for bad in (float("nan"), -0.5):
+        for bad in (float("nan"), -0.5, float("inf"), True):
             with pytest.raises(ValueError):
                 await fresh.commit(t2, bad)
 
@@ -455,6 +462,10 @@ def test_ledger_appends_one_line_per_run(tmp_path):
     )
     lines = path.read_text(encoding="utf-8").splitlines()
     assert path.read_text(encoding="utf-8").startswith(first) and len(lines) == 2
+    ledger.append_spend(
+        path, run_id="r3", provider="p", split="s", calls=1, estimate_usd=0, actual_usd=0, note="x"
+    )
+    assert json.loads(path.read_text(encoding="utf-8").splitlines()[2])["note"] == "x"
     assert set(json.loads(lines[1])) == {
         "at",
         "run_id",
@@ -550,5 +561,21 @@ def test_committed_live_schema_check_is_green():
         assert stage["accepted_and_valid"] and stage["error"] is None
         assert stage["model"] == cfg.model and stage["schema"] == schema
     assert 0 < record["total_cost_usd"] < 0.05
-    spent = ledger.total_spend(ROOT / "docs" / "measurements" / "spend-ledger.jsonl")
-    assert spent >= record["total_cost_usd"]
+    for key, cfg in (("stage1", CONFIG.stage1), ("stage2", CONFIG.stage2)):
+        stage = record["stages"][key]
+        want = cost.call_cost(Tokens(**stage["tokens"]), PRICES[cfg.model])
+        assert stage["cost_usd"] == pytest.approx(want, abs=1e-6)
+    lines = [
+        json.loads(x)
+        for x in (ROOT / "docs" / "measurements" / "spend-ledger.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    mine = [x for x in lines if x["run_id"] == "n1.3-schema-check"]
+    assert mine[-1]["actual_usd"] == pytest.approx(record["total_cost_usd"], abs=1e-6)
+    assert all(x["estimate_usd"] > 0 or x.get("note") for x in lines)  # no silent $0 estimate
+    preflight = json.loads(
+        (ROOT / "docs" / "measurements" / "preflight.json").read_text(encoding="utf-8")
+    )
+    w02 = next(x for x in lines if x["run_id"] == "w0.2-preflight")
+    assert w02["actual_usd"] >= preflight["total_cost_usd"] and w02["calls"] == 8
