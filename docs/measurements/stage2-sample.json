@@ -1,0 +1,133 @@
+{
+  "dispositions": {
+    "auto_cleared": 3,
+    "escalate": 5,
+    "hold": 2
+  },
+  "errors": {
+    "refusal": 0,
+    "schema": 0,
+    "transport": 0
+  },
+  "latency_ms": {
+    "stage1": {
+      "p50": 3335,
+      "p95": 5274
+    },
+    "stage2": {
+      "p50": 4493,
+      "p95": 7075
+    }
+  },
+  "models": {
+    "stage1": "claude-haiku-5-5",
+    "stage2": "claude-sonnet-5-5"
+  },
+  "n": 10,
+  "provider": "anthropic",
+  "rows": [
+    {
+      "decided_at_stage": 2,
+      "final": "auto_cleared",
+      "refusals": [],
+      "stage1_action": "pass",
+      "stage2_action": "clear",
+      "stage2_confidence": 0.86,
+      "stage2_cost_usd": 0.012554,
+      "stage2_error": null
+    },
+    {
+      "decided_at_stage": 1,
+      "final": "auto_cleared",
+      "refusals": [],
+      "stage1_action": "clear",
+      "stage2_action": null,
+      "stage2_confidence": null,
+      "stage2_cost_usd": 0.0,
+      "stage2_error": null
+    },
+    {
+      "decided_at_stage": 2,
+      "final": "hold",
+      "refusals": [],
+      "stage1_action": "pass",
+      "stage2_action": "hold",
+      "stage2_confidence": 0.96,
+      "stage2_cost_usd": 0.003809,
+      "stage2_error": null
+    },
+    {
+      "decided_at_stage": 2,
+      "final": "escalate",
+      "refusals": [],
+      "stage1_action": "pass",
+      "stage2_action": "escalate",
+      "stage2_confidence": 0.62,
+      "stage2_cost_usd": 0.007231,
+      "stage2_error": null
+    },
+    {
+      "decided_at_stage": 2,
+      "final": "escalate",
+      "refusals": [],
+      "stage1_action": "pass",
+      "stage2_action": "escalate",
+      "stage2_confidence": 0.72,
+      "stage2_cost_usd": 0.005933,
+      "stage2_error": null
+    },
+    {
+      "decided_at_stage": 2,
+      "final": "escalate",
+      "refusals": [],
+      "stage1_action": "pass",
+      "stage2_action": "escalate",
+      "stage2_confidence": 0.72,
+      "stage2_cost_usd": 0.005993,
+      "stage2_error": null
+    },
+    {
+      "decided_at_stage": 1,
+      "final": "auto_cleared",
+      "refusals": [],
+      "stage1_action": "clear",
+      "stage2_action": null,
+      "stage2_confidence": null,
+      "stage2_cost_usd": 0.0,
+      "stage2_error": null
+    },
+    {
+      "decided_at_stage": 2,
+      "final": "escalate",
+      "refusals": [],
+      "stage1_action": "pass",
+      "stage2_action": "escalate",
+      "stage2_confidence": 0.6,
+      "stage2_cost_usd": 0.007409,
+      "stage2_error": null
+    },
+    {
+      "decided_at_stage": 2,
+      "final": "hold",
+      "refusals": [],
+      "stage1_action": "pass",
+      "stage2_action": "hold",
+      "stage2_confidence": 0.95,
+      "stage2_cost_usd": 0.004029,
+      "stage2_error": null
+    },
+    {
+      "decided_at_stage": 2,
+      "final": "escalate",
+      "refusals": [],
+      "stage1_action": "pass",
+      "stage2_action": "escalate",
+      "stage2_confidence": 0.7,
+      "stage2_cost_usd": 0.008133,
+      "stage2_error": null
+    }
+  ],
+  "stage1_cache_hits": 0,
+  "stage2_cost_usd": 0.055091,
+  "total_billed_usd": 0.058829
+}

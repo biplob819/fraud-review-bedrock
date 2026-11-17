@@ -5,7 +5,8 @@ calls the model through `llm.settled_call` (which reserves the worst case and se
 spend cap on every path), records the decision and stores it. Transport failures are not
 cached, so a rerun retries them.
 `needs_stage2` is the router hand-off after stage 1: an accepted clear ends the alert; anything
-else (a pass, a refused clear or an error) goes to stage 2.
+else (a pass, a refused clear or an error) goes to stage 2. `triage_alert` runs both stages and
+the router and returns exactly one disposition per alert.
 """
 
 from __future__ import annotations
@@ -21,10 +22,10 @@ from fraudreview.config import RunConfig
 from fraudreview.cost import SpendCap
 from fraudreview.llm import build_body, settled_call, to_decision
 from fraudreview.policy import Policy
-from fraudreview.router import RouterSettings, check_clear
-from fraudreview.schemas import AlertCase, TriageDecision
+from fraudreview.router import RouterSettings, check_clear, dispose
+from fraudreview.schemas import AlertCase, Disposition, TriageDecision
 
-STAGE_CODE_VERSION = "3"
+STAGE_CODE_VERSION = "4"
 SCHEMAS_HASH = source_hash(schemas)[
     :16
 ]  # bump when this module's logic changes (code_versions.json)
@@ -104,3 +105,29 @@ def needs_stage2(stage1: TriageDecision, case: AlertCase, ctx: Context) -> bool:
     """The hand-off: only a clear the router accepts ends the alert at stage 1 (FR5)."""
     settings = RouterSettings.from_config(ctx.config)
     return not check_clear(stage1, case, ctx.policy, settings).accepted
+
+
+@dataclass(frozen=True)
+class Triaged:
+    decisions: tuple[TriageDecision, ...]  # stage 1, then stage 2 when it ran
+    disposition: Disposition
+
+
+async def triage_alert(case: AlertCase, ctx: Context) -> Triaged:
+    """Stage 1, the hand-off, stage 2 when needed, and exactly one disposition (A2.4, §2.3).
+    A stage-2 error or refusal escalates; a refused stage-2 clear escalates with its reasons
+    recorded on the disposition; nothing but an accepted clear is ever auto-cleared."""
+    s1 = await run_stage(1, case, ctx)
+    s2 = await run_stage(2, case, ctx) if needs_stage2(s1, case, ctx) else None
+    settings = RouterSettings.from_config(ctx.config)
+    disposition = dispose(case, s1, s2, ctx.policy, settings)
+    return Triaged(tuple(d for d in (s1, s2) if d is not None), disposition)
+
+
+def error_counts(decisions: list[TriageDecision]) -> dict[str, int]:
+    """Failures by type (FR7, D-20): every decision with an error, counted once."""
+    counts = {"schema": 0, "refusal": 0, "transport": 0}
+    for d in decisions:
+        if d.error is not None:
+            counts[d.error] += 1
+    return counts
