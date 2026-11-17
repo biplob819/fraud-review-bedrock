@@ -11,6 +11,7 @@ failed call never becomes a clear. Provider and configuration errors raise `Prov
 from __future__ import annotations
 
 import asyncio
+import math
 import random
 import time
 from collections.abc import Awaitable, Callable, Sequence
@@ -25,7 +26,7 @@ from fraudreview.router import guard_request
 from fraudreview.schemas import Stage1Output, Stage2Output, Tokens, TriageDecision
 
 ErrorKind = Literal["schema", "refusal", "transport"]
-CODE_VERSION = "5"  # the `model_call` step; bump with any change to this module (BRK-03)
+CODE_VERSION = "6"  # the `model_call` step; bump with any change to this module (BRK-03)
 MAX_TRANSPORT_ATTEMPTS = 6  # §2.4
 MAX_SCHEMA_ATTEMPTS = 2  # one retry, same prompt (FR7)
 BACKOFF_BASE_S = 1.0
@@ -289,6 +290,7 @@ async def settled_call(
     - Any other exception: commit the whole reservation, since a reply may have been billed
       before the failure, then re-raise. Spend is never released unrecorded.
     `commit` may raise `CapReached` (exit 3) after recording."""
+    check_price(price)  # before anything is reserved or sent
     reserve = worst_case_cost(body, price)
     token = await cap.reserve(reserve)
     try:
@@ -304,8 +306,23 @@ async def settled_call(
     except BaseException:
         await cap.commit(token, reserve)
         raise
+    if not (math.isfinite(usd) and usd >= 0):  # cannot happen with checked prices; stay safe
+        usd = reserve
     await cap.commit(token, usd)
     return result, usd
+
+
+PRICE_FIELDS = ("input", "output", "cache_read", "cache_write_5m", "cache_write_1h")
+
+
+def check_price(price: Any) -> None:
+    """Every price a call can be billed at is a finite, non-negative number (exit 2 if not)."""
+    if not isinstance(price, dict):
+        raise ProviderConfigError("prices.yaml has no price row for this model")
+    for f in PRICE_FIELDS:
+        v = price.get(f)
+        if isinstance(v, bool) or not isinstance(v, int | float) or not math.isfinite(v) or v < 0:
+            raise ProviderConfigError(f"prices.yaml: {f} must be a finite price of 0 or more")
 
 
 def make_client(config: RunConfig) -> Any:

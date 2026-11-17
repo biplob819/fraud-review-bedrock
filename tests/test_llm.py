@@ -405,6 +405,15 @@ def test_settled_call_records_spend_on_every_path():
     assert cap3.reserved == {} and cap3.actual == pytest.approx(worst)
 
 
+def test_bad_prices_stop_before_any_reservation_or_send():
+    for bad in (float("nan"), -0.01, float("inf"), True, "cheap", None):
+        price = {**PRICES["claude-haiku-5-5"], "cache_read": bad}
+        client, cap = Script(reply()), cost.SpendCap(5.0)
+        with pytest.raises(llm.ProviderConfigError, match="cache_read"):
+            asyncio.run(llm.settled_call(client, body(), Stage1Output, cap=cap, price=price))
+        assert client.bodies == [] and cap.reserved == {} and cap.actual == 0
+
+
 def test_missing_key_is_named_before_any_call(monkeypatch):
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     with pytest.raises(llm.ProviderConfigError, match="ANTHROPIC_API_KEY"):
