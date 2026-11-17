@@ -6,7 +6,7 @@
 Use EvalKit's project-driven capabilities instead of project-only code (OWNER D-38). The rule-compliance scorer and structured-evidence faithfulness with value checks are built in the EvalKit repo (its B5.13; public `faithfulness` in its B5.2). They are pinned here and wired in through one bridge module. Monitoring (EvalKit B5.7, v0.4.0) is picked up in E2.4 (MON-05).
 
 ## Outputs
-- `pyproject.toml` pins EvalKit to an exact commit. Until v0.3.0 is tagged, that is the EvalKit development commit where B5.2 and B5.13 are green. The pin moves to the v0.3.0 tag before this node is green (EVK-04).
+- `pyproject.toml` pins EvalKit to an exact commit. Until v0.3.0 is tagged, that is the EvalKit development commit where B5.2 and B5.13 are green. The pin is an exact commit that reports v0.3.0; it moves to the tag when EvalKit publishes it, as a one-line change (EVK-04).
 - `src/fraudreview/evalkit_bridge.py`:
   - `ruleset(policy)`: our clauses as an EvalKit `RuleSet` (clear→allow, no_clear→never, signal→signal).
   - `record(case)`: the flat agent-visible alert.

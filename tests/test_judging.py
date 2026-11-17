@@ -309,3 +309,36 @@ def test_cli_dry_run_prints_the_estimate_and_calls_nothing(
     assert "no model calls made" in out
     assert main([*argv, "--cap-usd", "0.0001"]) == 2  # over the cap: estimate shown, exit 2
     assert not (run / "faithfulness.json").exists()
+
+
+@pytest.mark.contract
+def test_committed_faithfulness_summary_is_an_honest_opus_only_partial():
+    import json as _json
+    from pathlib import Path as _Path
+
+    root = _Path(__file__).resolve().parent.parent
+    rec = _json.loads(
+        (root / "docs" / "measurements" / "faithfulness-cache-summary.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert rec["data_label"] == "simulated" and set(rec["judges"]) == {"claude-opus-5-5"}
+    op = rec["judges"]["claude-opus-5-5"]
+    assert 0 < op["claim_coverage"] < 1  # a partial: not every claim was judged
+    assert op["claims_judged"] == sum(op["verdict_mix"].values())
+    assert op["claims_supported"]["k"] == op["verdict_mix"]["supported"]
+    assert op["claims_supported"]["n"] == op["claims_judged"]
+    sup = op["claims_supported"]
+    assert sup["lo"] <= sup["point"] <= sup["hi"]
+    assert op["explanations_fully_judged"] <= rec["explanations"]
+    text = _json.dumps(rec)
+    assert '"a-' not in text and "fth-" not in text  # aggregates only, no ids
+    ledger = [
+        _json.loads(x)
+        for x in (root / "docs" / "measurements" / "spend-ledger.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if x
+    ]
+    spent = sum(x["actual_usd"] for x in ledger if x["split"] == "faithfulness")
+    assert spent == pytest.approx(rec["cost_recorded_usd"]["claude-opus-5-5"], abs=0.5)

@@ -126,3 +126,21 @@ def test_files_round_trip_and_render(tmp_path: Path) -> None:
     assert labels == {alert(0): True, alert(1): False, alert(2): False}
     text = c.render(c.compare_runs(runs, runs, labels, n_resamples=RES))
     assert "no difference" in text and "leakage" in text and "auto_clear" in text
+
+
+def test_fewer_leaks_with_a_claimed_automation_loss_is_safer_not_worse():
+    """The night rule: leakage fell (not a claimed gap) and auto-clear fell (claimed)."""
+    rng = random.Random(3)
+    n = 300
+    labels = {alert(i): i % 7 == 0 for i in range(n)}
+    leak = 7  # a fraud cleared before, not after
+    before = {i for i in range(n) if i % 7 and rng.random() < 0.40} | {leak}  # frauds: i % 7 == 0
+    after = {i for i in before if rng.random() < 0.35 and i != leak}
+
+    def runs(cleared: set[int]) -> list[Disposition]:
+        return [disp(i, "auto_cleared" if i in cleared else "escalate") for i in range(n)]
+
+    r = c.compare_runs(runs(before), runs(after), labels)
+    assert r.gap("auto_clear").claimed and r.gap("auto_clear").diff < 0
+    assert not r.gap("leakage").claimed and r.gap("leakage").diff < 0
+    assert c.verdict(r) == "safer, less automation"

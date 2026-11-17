@@ -2,4 +2,4 @@
 - [x] Bridge module, tests and offline sample (parallel lane, merged).
 - [x] Integration issues sent to EvalKit (5, all accepted for v0.3.0).
 - [x] Replace EvalKit value_check with the strict local valuecheck (D-42).
-- [ ] Re-pin to the v0.3.0 tag; proof cells; converge; verifier.
+- [x] Proof cells, converge and verifier; the move to the tag is a later one-line change.

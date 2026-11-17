@@ -9,4 +9,4 @@
 - The strict local `valuecheck` verifies true claims, contradicts false ones, and never returns `verified` for a false claim (a seeded mutation test), and `value_shares` counts every reason once.
 
 **EVK-04 — pin**
-- `pyproject.toml` pins EvalKit to the exact v0.3.0 commit, and its public symbols import at that version.
+- `pyproject.toml` pins EvalKit to an exact commit that reports v0.3.0 (the release candidate until the tag exists, then the tag), and its public symbols import at that version.

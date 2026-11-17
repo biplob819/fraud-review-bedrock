@@ -132,7 +132,7 @@ def compare_runs(
     return Comparison(names, len(ids), tuple(gaps))
 
 
-Verdict = Literal["better", "worse", "no difference"]
+Verdict = Literal["better", "worse", "no difference", "safer, less automation"]
 
 
 def verdict(result: Comparison) -> Verdict:
@@ -142,6 +142,8 @@ def verdict(result: Comparison) -> Verdict:
     if leak.claimed:  # leakage fell
         return "better"
     if clear.claimed:
+        if clear.diff < 0 and leak.diff < 0:  # fewer leaks (not a claimed gap), fewer auto-clears
+            return "safer, less automation"
         return "better" if clear.diff > 0 else "worse"
     return "no difference"
 

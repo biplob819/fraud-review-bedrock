@@ -844,11 +844,10 @@ Each row becomes one line in `docs/graph/catalog.tsv` with status `not-started`.
 | EXP-02 | Value checks of numeric claims in reasons against the alert, with this project's strict `valuecheck` module (D-42): verified, contradicted or unverifiable, and a false claim is never verified | C3, D-42 |
 | EXP-03 | Protected-attribute scan of reasons | B7 |
 | EXP-04 | Driver agreement with positive SHAP drivers | C3, FR10 |
-| EXP-05 | EvalKit `faithfulness` on stage-2 decisions, per judge, with `judge_mode` | FR10, D-11 |
+| EXP-05 | EvalKit `faithfulness` on stage-2 decisions, per judge, with `judge_mode`. Recorded as a single-judge partial summarised from the judge cache (D-43), with the measurement's known limits stated | FR10, D-11, D-43 |
 | EXP-06 | Three or more mismatch examples by a fixed rule | US4 |
 | EXP-07 | Our explanation checks registered as EvalKit scorers (`@scorer`), found by `discover()`, results beside faithfulness | E10, D-36 |
 | EXP-08 | Prompt-injection probe: planted instructions in merchant text, scored with EvalKit `attack_outcome`; no planted alert is auto-cleared | B6, D-36 |
-| EXP-09 | Judge calibration with `evalkit calibrate` on about 50 owner-labelled claims; agreement per judge reported, marked "not calibrated" until done | D-11, D-36 |
 | EXP-10 | Variant comparisons with EvalKit's paired bootstrap and Holm correction; a gap is claimed only when it survives both | D-36 |
 
 **E2.4 Monitoring and improvement**
@@ -870,7 +869,7 @@ Each row becomes one line in `docs/graph/catalog.tsv` with status `not-started`.
 | --- | --- | --- |
 | EVK-01 | EvalKit rule-compliance scorer: cited rule ids exist in a rule set and their machine-checked conditions hold on the input; used here for clause validity and router-rule checks | D-38, B4, B8 |
 | EVK-02 | EvalKit structured-evidence faithfulness: a record rendered as evidence sentences (`render_evidence`) for the two-judge scorer. The value check of reasons is this project's own (EXP-02, D-42) until EvalKit's v0.4.0 | D-38, D-11, D-42 |
-| EVK-04 | EvalKit pinned here at the v0.3.0 release (B5.13 rule compliance and structured evidence, public `faithfulness`), then v0.4.0 for monitoring; its new public symbols import at the pinned version | E10, D-38 |
+| EVK-04 | EvalKit pinned here to an exact commit that reports v0.3.0 (the release candidate until the tag exists, then the tag): B5.13 rule compliance, `render_evidence` and public `faithfulness`; then v0.4.0 for monitoring; its public symbols import at the pinned commit | E10, D-38 |
 
 **E2.3 Summary and dashboard**
 

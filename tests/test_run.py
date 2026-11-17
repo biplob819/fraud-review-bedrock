@@ -383,5 +383,5 @@ def test_committed_eval_runs_are_logged_honestly():
     assert {k: frozen[k] for k in shared} == {k: eval2_facts[k] for k in shared}
     ledger = (ROOT / "docs" / "measurements" / "spend-ledger.jsonl").read_text(encoding="utf-8")
     for r in rows:
-        line = [json.loads(x) for x in ledger.splitlines() if r["run_id"] in x][-1]
+        line = [y for y in map(json.loads, ledger.splitlines()) if y["run_id"] == r["run_id"]][-1]
         assert line["actual_usd"] == pytest.approx(r["billed_usd"], abs=1e-6)
