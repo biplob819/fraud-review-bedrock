@@ -3,7 +3,7 @@
 **Wave 4. Depends on:** A2.5. **Unblocks:** D4.2 (project page).
 
 ## Goal
-One diagram that shows what ran and what an AWS pilot would add, honestly labelled, for the README, the portfolio site and model-risk reviewers (US9, Tech Spec §7).
+One diagram that shows what ran and what an AWS pilot would add, honestly labelled, for the README, the project page and model-risk reviewers (US9, Tech Spec §7).
 
 ## Outputs
 - `docs/assets/architecture.svg`: on a white background, with every label as real text.
