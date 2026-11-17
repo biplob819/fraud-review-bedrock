@@ -402,7 +402,7 @@ def _monitor(args: argparse.Namespace) -> int:
         ]
         labels = {r["alert_id"]: bool(r["label"]) for r in truth}
         fields = metrics.compute(disp, decs, labels, minutes_per_alert=4.0, seed=config.seed)
-    except (ConfigError, OSError, ValueError, KeyError) as exc:
+    except (ConfigError, OSError, ValueError, KeyError, metrics.MetricsError) as exc:
         print(f"fraud monitor: {type(exc).__name__}: {exc}", file=sys.stderr)
         return 2
     line = monitor.run_history_line(run.name, fields, facts)

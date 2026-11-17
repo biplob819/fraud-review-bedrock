@@ -408,9 +408,14 @@ def accept_change(
             f"leakage stays 0, auto-clear change {-drop:+.2f} within {tolerance:.2f}; "
             "paired test pending (EvalKit v0.3.0)"
         )
-    if paired.get("survives_holm") is not True:
-        return "revert", "the paired gain does not survive the Holm correction"
-    return "keep", "leakage stays 0 and the paired gain survives the Holm correction"
+    if drop < -1e-12:  # auto-clear ROSE: a gain is claimed only if it survives Holm
+        if paired.get("survives_holm") is not True:
+            return "revert", "the auto-clear rise does not survive the Holm correction"
+        return "keep", "leakage stays 0 and the auto-clear gain survives the Holm correction"
+    return "keep", (
+        f"leakage stays 0, auto-clear change {-drop:+.2f} within {tolerance:.2f}; "
+        "no gain is claimed"
+    )
 
 
 # ------------------------------------------------------------------ IMP-03 freeze guard

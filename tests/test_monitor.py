@@ -310,7 +310,7 @@ def test_accept_change_rules():
     assert verdict == "keep" and "pending" in reason
     assert mon.accept_change(base, dev("dev-100-b", 0, 35), paired={"survives_holm": True}) == (
         "keep",
-        "leakage stays 0 and the paired gain survives the Holm correction",
+        "leakage stays 0 and the auto-clear gain survives the Holm correction",
     )
     assert mon.accept_change(base, dev("b", 0, 35), paired={"survives_holm": False})[0] == "revert"
     assert mon.accept_change(base, dev("b", 0, 20), tolerance=0.1)[0] == "keep"
@@ -612,3 +612,13 @@ def test_a_rate_over_no_cases_raises_no_alarm():
     assert mon.metric_value(line, "auto_clear_precision") is None
     bands = [AlarmBand(metric="auto_clear_precision", warn_below=0.98, fail_below=0.95)]
     assert mon.check_bands(line, bands) == []
+
+
+def test_a_neutral_change_is_kept_even_with_a_paired_result():
+    """IMP-02: leakage 0 to 0 and auto-clear within tolerance is kept; only a rise needs Holm."""
+    b = {"n": 100, "frauds": 10, "leakage": {"k": 0}, "auto_clear_rate": {"point": 0.30}}
+    a = {"n": 100, "frauds": 10, "leakage": {"k": 0}, "auto_clear_rate": {"point": 0.29}}
+    assert mon.accept_change(b, a, paired={"survives_holm": False})[0] == "keep"
+    up = {**a, "auto_clear_rate": {"point": 0.40}}
+    assert mon.accept_change(b, up, paired={"survives_holm": False})[0] == "revert"
+    assert mon.accept_change(b, up, paired={"survives_holm": True})[0] == "keep"

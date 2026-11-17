@@ -859,7 +859,7 @@ Each row becomes one line in `docs/graph/catalog.tsv` with status `not-started`.
 | MON-03 | Drift check with a local population-stability index: per agent-visible numeric feature between the frozen eval alerts and a new batch, printed by `fraud monitor --reference`; warn above 0.1, alarm above 0.25 | D-36, D-38 |
 | MON-04 | Trend data for the dashboard, read from `runs.jsonl` | D-36 |
 | IMP-01 | Experiment ledger `docs/measurements/experiments.jsonl`: each dev-set change with hypothesis, change hash, metrics, paired result and keep-or-revert verdict, kept or not | D-36 |
-| IMP-02 | Improvement loop on the dev set only: `fraud experiment` takes two dev runs, applies the keep-or-revert rule (leakage stays 0 and auto-clear falls within tolerance, or a leak is fixed; any other gain must survive the paired bootstrap with Holm), and appends the ledger line, kept or not | D-36 |
+| IMP-02 | Improvement loop on the dev set only: `fraud experiment` takes two dev runs, applies the keep-or-revert rule (leakage stays 0 and auto-clear falls within tolerance, or a leak is fixed; a claimed auto-clear gain must survive the paired bootstrap with Holm), and appends the ledger line, kept or not | D-36 |
 | IMP-03 | Freeze guard: a policy or prompt hash that differs from the eval run's forces a fresh 500 from the remaining test-period alerts before publishing (EvalKit CAL-05) | D-36 |
 
 **E2.5 EvalKit v0.3.0 capabilities**
