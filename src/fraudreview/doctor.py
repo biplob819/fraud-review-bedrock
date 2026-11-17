@@ -25,7 +25,7 @@ from fraudreview.config import ConfigError, RunConfig, load_config
 from fraudreview.router import guard_request
 
 Status = Literal["ok", "warn", "fail", "skip"]
-EVALKIT_VERSION = "0.2.0"  # pinned in pyproject.toml by the v0.2.0 commit (PRE-06)
+EVALKIT_VERSION = "0.2.0"  # evalkit.__version__ at the pinned v0.3.0 development commit (E2.5)
 PRICE_MAX_AGE_DAYS = 90
 PRICE_FIELDS = ("input", "output", "cache_read", "cache_write_5m", "cache_write_1h")
 
@@ -119,13 +119,14 @@ def check_kaggle(auth: Callable[[], str | None] | None = None) -> Check:
 def check_evalkit() -> Check:
     try:
         import evalkit
+        from evalkit.scorers import rule_compliance, value_check  # noqa: F401  (B5.13, E2.5)
         from evalkit.scorers.faithfulness import FaithfulnessItem, faithfulness  # noqa: F401
     except ImportError as exc:
         return Check("evalkit", "fail", f"not importable ({exc.name})")
     version = getattr(evalkit, "__version__", "?")
     if version != EVALKIT_VERSION:
         return Check("evalkit", "fail", f"version {version}, pinned {EVALKIT_VERSION}")
-    return Check("evalkit", "ok", f"{version}; faithfulness scorer imports")
+    return Check("evalkit", "ok", f"{version}; faithfulness, rule and value scorers import")
 
 
 # ---------------------------------------------------------------- online (Bedrock and Claude API)
