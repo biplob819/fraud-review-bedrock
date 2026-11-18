@@ -9,3 +9,9 @@ docs/patterns.md
 docs/roi/README.md
 docs/discovery-summary.md
 docs/pr-faq.md
+docs/guide/README.md
+docs/guide/policy.md
+docs/guide/own-data.md
+docs/guide/cost.md
+docs/guide/privacy.md
+docs/versioning.md

@@ -1,0 +1,51 @@
+name: smoke
+
+# A fresh-clone check on Linux and macOS (OSS-05): a clean checkout with no results folder, no
+# data, no .env and no key. If the quickstart's first steps break for a new user, this fails.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: fresh clone on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    env:
+      UV_PYTHON_PREFERENCE: only-managed
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: fresh
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - name: OpenMP runtime for LightGBM (macOS)
+        if: runner.os == 'macOS'
+        run: brew install libomp
+      - name: The clone has no results, data or secrets
+        working-directory: fresh
+        run: |
+          test ! -e results
+          test ! -e data
+          test ! -e .env
+      - name: Install from the lock file
+        working-directory: fresh
+        run: uv sync --locked
+      - name: Version
+        working-directory: fresh
+        run: uv run fraud --version
+      - name: Render the example dashboard (no keys, no results folder)
+        working-directory: fresh
+        run: |
+          uv run fraud report --example --out example.html
+          test -s example.html
+          grep -q "simulated" example.html

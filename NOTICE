@@ -1,0 +1,26 @@
+fraud-review-bedrock
+Copyright (c) 2026 Biplob Chakraborty. Released under the MIT licence (see LICENSE).
+
+Data credits
+------------
+This project ships no data. All data used in its published results is simulated.
+
+- Sparkov Data Generation, by Brandon Harris. Sparkov is the simulator that produced the card
+  transactions. A copy is published on Kaggle as kartik2112/fraud-detection under the CC0
+  public-domain licence.
+- Fraud Dataset Benchmark (FDB), by Amazon Science
+  (https://github.com/amazon-science/fraud-dataset-benchmark). Its "sparknov" dataset is this Sparkov
+  copy. This project uses it so results can be compared with published baselines.
+
+How to get the data
+-------------------
+You download it yourself. Run `fraud load`, with a Kaggle token in KAGGLE_API_TOKEN,
+~/.kaggle/access_token or ~/.kaggle/kaggle.json. The command downloads the two source files from
+Kaggle, checks them against pinned sha256 hashes, drops personal and location columns and writes the
+splits to the git-ignored `data/` folder. No data file is committed to this repository, and a test
+checks that. DATA_CARD.md describes the data in full.
+
+Other software
+--------------
+EvalKit (https://github.com/biplob819/evalkit) scores the results. Other dependencies keep their own
+licences; see uv.lock for the list.

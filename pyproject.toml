@@ -61,7 +61,7 @@ allow-direct-references = true  # EvalKit is pinned to an exact commit on GitHub
 packages = ["src/fraudreview"]
 
 [tool.hatch.build.targets.sdist]
-include = ["src/fraudreview", "README.md", "LICENSE", "changelog.md"]
+include = ["src/fraudreview", "README.md", "LICENSE", "NOTICE", "changelog.md"]
 
 [tool.ruff]
 line-length = 100
