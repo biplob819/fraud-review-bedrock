@@ -101,7 +101,7 @@ Bedrock is supported through the in-Region Mantle endpoint. It was not run for t
 
 ## Links
 
-- [Results dashboard](docs/dashboard.html): one self-contained page. Open the file in a browser. A workflow that publishes it to GitHub Pages is in the repo and is switched on by the owner when wanted.
+- [Results dashboard](https://biplob819.github.io/fraud-review-bedrock/): one self-contained page on simulated data, published to GitHub Pages by `pages.yml`. The same file is [docs/dashboard.html](docs/dashboard.html).
 - [Replay demo](demo/README.md): the analyst review screen, run locally.
 - [Case study](docs/case-study.md)
 - [PR/FAQ](docs/pr-faq.md)
