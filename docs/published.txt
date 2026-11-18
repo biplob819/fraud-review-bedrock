@@ -6,3 +6,5 @@ docs/case-study.md
 docs/dashboard.html
 docs/measurements/summary-eval2.json
 docs/patterns.md
+docs/roi/README.md
+docs/discovery-summary.md
