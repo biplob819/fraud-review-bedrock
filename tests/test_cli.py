@@ -13,14 +13,14 @@ ROOT = Path(__file__).resolve().parent.parent
 
 def test_version_string_matches_pyproject():
     meta = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
-    assert fraudreview.__version__ == meta["version"] == "0.0.1"
+    assert fraudreview.__version__ == meta["version"] == "0.1.0"
 
 
 def test_cli_version_flag_prints_version(capsys):
     with pytest.raises(SystemExit) as exc:
         main(["--version"])
     assert exc.value.code == 0
-    assert capsys.readouterr().out.strip() == "fraud 0.0.1"
+    assert capsys.readouterr().out.strip() == "fraud 0.1.0"
 
 
 def test_cli_runs_as_module():
@@ -30,7 +30,7 @@ def test_cli_runs_as_module():
         text=True,
         check=True,
     )
-    assert out.stdout.strip() == "fraud 0.0.1"
+    assert out.stdout.strip() == "fraud 0.1.0"
 
 
 @pytest.mark.contract

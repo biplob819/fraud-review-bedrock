@@ -2,6 +2,9 @@
 
 Format: `[TYPE] [NODE] — summary`. Types: FEAT, FIX, DOCS, HARNESS, RELEASE.
 
+## v0.1.0
+- [RELEASE] [D4.3] — first public release. A two-stage Claude agent that triages simulated card-fraud alerts under a written policy, with a router in code that decides every clear, a hash-chained audit log, a replay demo of the analyst screen, a results dashboard, and an evaluation on a fresh set of 500 alerts: 0 of 55 frauds auto-cleared (exact 95% upper bound 5.3%) and 8.8% of alerts auto-cleared (44 of 500), all on simulated data. The first evaluation failed (2 of 79 frauds) and stays in the record. Faithfulness judging is a single-judge partial result, not calibrated. The hosted demo is planned for v0.2, and there is no video. The package is not on PyPI.
+
 ## 2026-11-17
 - [FEAT] [D4.2] — project page: a write-up with one alert walked through in screenshots, the evaluation results (simulated data), what real use would need, and links to every supporting document, plus a one-page PRD that says what changed from the plan; there is no video
 - [FEAT] [D4.3] — open-source release files: a release README with screenshots and a step-by-step guide, contributing, security and code-of-conduct files, issue and PR templates, guides for your own policy and data, cost control and privacy, a versioning policy, a tag-triggered release workflow that never publishes to PyPI, a fresh-clone smoke job on Linux and macOS, and the data credit; the case study is updated with the final evaluation; v0.1.0 is not tagged

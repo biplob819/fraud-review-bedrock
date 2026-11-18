@@ -1,6 +1,6 @@
 [project]
 name = "fraud-review-bedrock"
-version = "0.0.1"
+version = "0.1.0"
 description = "A fraud-review agent on Amazon Bedrock that triages card alerts, explains each decision against a written policy and sends uncertain cases to a person."
 readme = "README.md"
 license = "MIT"
