@@ -17,6 +17,8 @@ The safety bar is that the agent auto-clears no fraud.
 
 This is a demonstration. It is not validated for real use. Read the [case study](docs/case-study.md) and the [PR/FAQ](docs/pr-faq.md) for the limits.
 
+[![Walkthrough of the key screens (simulated data): the architecture, the analyst review screen, the audit log and five dashboard panels](https://raw.githubusercontent.com/biplob819/fraud-review-bedrock/main/docs/assets/walkthrough.gif)](https://github.com/biplob819/fraud-review-bedrock/blob/main/docs/walkthrough.md)
+
 ![The results dashboard](docs/assets/screens/dashboard.png)
 
 ![The analyst review screen, one case](docs/assets/screens/review-case.png)

@@ -3,6 +3,7 @@
 Format: `[TYPE] [NODE] — summary`. Types: FEAT, FIX, DOCS, HARNESS, RELEASE.
 
 ## v0.1.0
+- [DOCS] [—] — README shows the looping walkthrough GIF (`docs/assets/walkthrough.gif`) near the top, linked to its shot list; owner request
 - [DOCS] [D4.2] — a looping walkthrough GIF of the key screens (nine frames, simulated data, no spend shown) stands in for a video, with a shot list and a script that rebuilds it
 - [RELEASE] [D4.3] — first public release. A two-stage Claude agent that triages simulated card-fraud alerts under a written policy, with a router in code that decides every clear, a hash-chained audit log, a replay demo of the analyst screen, a results dashboard, and an evaluation on a fresh set of 500 alerts: 0 of 55 frauds auto-cleared (exact 95% upper bound 5.3%) and 8.8% of alerts auto-cleared (44 of 500), all on simulated data. The first evaluation failed (2 of 79 frauds) and stays in the record. Faithfulness judging is a single-judge partial result, not calibrated. The hosted demo is planned for v0.2, and there is no video. The package is not on PyPI.
 
