@@ -469,8 +469,8 @@ def _monitor(args: argparse.Namespace) -> int:
         ]
         for name, (value, level) in monitor.drift(read(args.reference), read(args.cases)).items():
             print(f"  drift {name}: PSI {value:.3f} ({level})")
-    if not args.no_append:
-        monitor.append_history(ROOT / "docs" / "measurements" / "runs.jsonl", line)
+    if not args.no_append and not monitor.append_history_once(ROOT / monitor.RUNS, line):
+        print(f"  already in the history ({line['run_id']}, {line['digest']}); not added twice")
     return 1 if any(a.level == "fail" for a in alarms) else 0
 
 
@@ -559,6 +559,14 @@ def _experiment(args: argparse.Namespace) -> int:
         after = run.dev_log_line(_finished(args.after), args.truth, config)
         facts_b = json.loads((args.before / "run.json").read_text(encoding="utf-8"))
         facts_a = json.loads((args.after / "run.json").read_text(encoding="utf-8"))
+        if args.truth.name.startswith("truth_") and args.truth.name != "truth_dev.jsonl":
+            raise ValueError(f"--truth is {args.truth.name}; an experiment needs truth_dev.jsonl")
+        for side, facts in (("before", facts_b), ("after", facts_a)):
+            if not str(facts["run_id"]).startswith("dev-"):  # run ids start with their split
+                raise ValueError(
+                    f"--{side} is run {facts['run_id']!r}, not a dev run; an experiment is "
+                    "judged on the dev split only (the eval splits stay frozen)"
+                )
         from fraudreview import compare
 
         labels = compare.load_labels(args.truth)

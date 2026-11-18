@@ -2,6 +2,9 @@
 
 Format: `[TYPE] [NODE] — summary`. Types: FEAT, FIX, DOCS, HARNESS, RELEASE.
 
+## v0.2
+- [FIX] [E2.2, E2.4, D4.3] — a lock on the spend ledger lets only one `fraud judge` run at a time spend against the cap, so overlapping runs cannot pass it together (a second run is refused with a message); `fraud monitor` run twice on one run adds one history line, not two; `fraud experiment` refuses runs that are not dev runs and a labels file named for another split; every GitHub workflow action is pinned to a full commit SHA with its version in a trailing comment, checked by a test
+
 ## v0.1.0
 - [DOCS] [—] — README shows the looping walkthrough GIF (`docs/assets/walkthrough.gif`) near the top, linked to its shot list; owner request
 - [DOCS] [D4.2] — a looping walkthrough GIF of the key screens (nine frames, simulated data, no spend shown) stands in for a video, with a shot list and a script that rebuilds it

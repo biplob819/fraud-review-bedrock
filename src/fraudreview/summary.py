@@ -370,10 +370,4 @@ def append_history_once(path: Path, built: Built) -> bool:
     True when a line was added."""
     line = monitor.run_history_line(built.summary.run_id, built.fields, built.facts)
     line["source"] = "fraud evaluate"
-    if any(
-        row.get("run_id") == line["run_id"] and row.get("digest") == line["digest"]
-        for row in monitor.read_jsonl(path)
-    ):
-        return False
-    monitor.append_history(path, line)
-    return True
+    return monitor.append_history_once(path, line)

@@ -48,7 +48,7 @@ from evalkit.schemas import RunConfig as EvalKitConfig
 from evalkit.scorers.faithfulness import FaithfulnessItem, FaithfulnessResult, faithfulness
 
 from fraudreview import evalkit_bridge
-from fraudreview.ledger import LEDGER, append_spend
+from fraudreview.ledger import LEDGER, LedgerBusy, append_spend, exclusive
 from fraudreview.schemas import AlertCase, TriageDecision
 from fraudreview.stats import bootstrap_mean, wilson
 
@@ -279,9 +279,40 @@ async def judge_async(
     adapters: Mapping[str, ModelAdapter] | None = None,
 ) -> list[FaithfulnessResult]:
     """Run `faithfulness` live. `adapters` is for tests (fakes); live runs build EvalKit's."""
+    ledger = ledger_path or Path(LEDGER)
+    # One judging run at a time per ledger: the cap is read from the ledger and spent against, so
+    # two overlapping runs would each see the same remainder and together pass the cap (D-43).
+    try:
+        with exclusive(ledger):
+            return await _judge_locked(
+                items,
+                cap_usd=cap_usd,
+                store_dir=store_dir,
+                ledger=ledger,
+                run_id=run_id,
+                config=config,
+                prices=prices,
+                adapters=adapters,
+            )
+    except LedgerBusy as exc:
+        raise JudgingRefused(
+            f"another judging run holds the ledger lock ({exc}); wait for it to finish"
+        ) from exc
+
+
+async def _judge_locked(
+    items: Sequence[FaithfulnessItem],
+    *,
+    cap_usd: float,
+    store_dir: Path,
+    ledger: Path,
+    run_id: str,
+    config: EvalKitConfig | None,
+    prices: dict[str, Price] | None,
+    adapters: Mapping[str, ModelAdapter] | None,
+) -> list[FaithfulnessResult]:
     config = config or eval_config()
     prices = prices if prices is not None else load_prices()
-    ledger = ledger_path or Path(LEDGER)
     # The cap is a TOTAL for judging across every invocation (a rerun that restarted the cap
     # caused OWNER D-43): everything the ledger holds for judging counts against the cap.
     spent_before = spent_for(ledger)

@@ -7,8 +7,11 @@ request id.
 
 from __future__ import annotations
 
+import fcntl
 import json
 import os
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -48,6 +51,29 @@ def append_spend(
     finally:
         os.close(fd)
     return line
+
+
+class LedgerBusy(RuntimeError):
+    """Another process holds the exclusive lock on this ledger."""
+
+
+@contextmanager
+def exclusive(path: Path) -> Iterator[None]:
+    """Hold an exclusive advisory lock for a ledger (a sibling `.lock` file) or raise `LedgerBusy`
+    at once. A run that reads the spent total, spends, then appends must hold it throughout, or two
+    runs can each see the same remaining cap and together pass it. The OS drops the lock if the
+    process dies."""
+    lock = path.with_name(path.name + ".lock")
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(lock, os.O_WRONLY | os.O_CREAT, 0o644)
+    try:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as exc:
+            raise LedgerBusy(f"{path} is locked by another run") from exc
+        yield
+    finally:
+        os.close(fd)  # closing releases the lock
 
 
 def total_spend(path: Path) -> float:

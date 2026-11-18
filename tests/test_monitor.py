@@ -622,3 +622,51 @@ def test_a_neutral_change_is_kept_even_with_a_paired_result():
     up = {**a, "auto_clear_rate": {"point": 0.40}}
     assert mon.accept_change(b, up, paired={"survives_holm": False})[0] == "revert"
     assert mon.accept_change(b, up, paired={"survives_holm": True})[0] == "keep"
+
+
+def test_fraud_monitor_twice_on_one_run_appends_one_line(tmp_path, monkeypatch, capsys):
+    from fraudreview import cli
+
+    run_a, _, truth = _two_runs(tmp_path, leak=False)
+    monkeypatch.setattr(cli, "ROOT", tmp_path)
+    (tmp_path / "docs" / "measurements").mkdir(parents=True)
+    cfg = str(Path(__file__).resolve().parent.parent / "config.yaml")
+    args = ["monitor", "--run", str(run_a), "--truth", str(truth), "--config", cfg]
+    assert cli.main(args) == 0
+    capsys.readouterr()
+    assert cli.main(args) == 0
+    assert "already in the history" in capsys.readouterr().out
+    log = tmp_path / "docs" / "measurements" / "runs.jsonl"
+    assert len(log.read_text(encoding="utf-8").splitlines()) == 1
+
+
+def test_fraud_experiment_refuses_runs_or_labels_that_are_not_the_dev_split(
+    tmp_path, monkeypatch, capsys
+):
+    from fraudreview import cli
+
+    run_a, run_b, truth = _two_runs(tmp_path, leak=False)
+    monkeypatch.setattr(cli, "ROOT", tmp_path)
+    (tmp_path / "docs" / "measurements").mkdir(parents=True)
+    cfg = str(Path(__file__).resolve().parent.parent / "config.yaml")
+
+    def args(before: Path, after: Path, labels: Path) -> list[str]:
+        return [
+            "experiment", "--before", str(before), "--after", str(after), "--truth", str(labels),
+            "--hypothesis", "h", "--change", "c", "--config", cfg,
+        ]  # fmt: skip
+
+    log = tmp_path / "docs" / "measurements" / "experiments.jsonl"
+    facts = json.loads((run_b / "run.json").read_text(encoding="utf-8"))
+    facts["run_id"] = "eval-500-abcd1234"
+    (run_b / "run.json").write_text(json.dumps(facts), encoding="utf-8")
+    assert cli.main(args(run_a, run_b, truth)) == 2
+    assert "not a dev run" in capsys.readouterr().err
+    facts["run_id"] = "dev-test"
+    (run_b / "run.json").write_text(json.dumps(facts), encoding="utf-8")
+    eval_truth = tmp_path / "truth_eval.jsonl"
+    eval_truth.write_text(truth.read_text(encoding="utf-8"), encoding="utf-8")
+    assert cli.main(args(run_a, run_b, eval_truth)) == 2
+    assert "truth_dev.jsonl" in capsys.readouterr().err
+    assert not log.exists()
+    assert cli.main(args(run_a, run_b, truth)) == 0  # dev runs and neutral labels still pass

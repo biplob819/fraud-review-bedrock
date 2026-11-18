@@ -12,3 +12,4 @@
 - Judging results name decision ids that embed alert ids in stdout and `results/` (not committed); hash them before sharing any output.
 - Evidence sentences round numbers (0.02 for 0.0167) and carry no policy text, which pushes faithfulness down; fix before any future judging run.
 - The model calls categories at 5-10% "rare"; P6.1 defines rare as under 5% (555 of 739 rarity claims).
+- v0.2 lane B: the simultaneous-`fraud judge` should-fix is closed by a lock file beside the ledger; a second run is refused while one runs (test: `test_a_second_judging_run_on_the_same_ledger_is_refused_while_one_runs`).

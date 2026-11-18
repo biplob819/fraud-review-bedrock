@@ -10,6 +10,7 @@ build/
 .harness/
 .fraud/
 results/
+*.jsonl.lock
 /data/
 .env
 .DS_Store

@@ -303,3 +303,16 @@ def test_release_workflow_requires_the_tag_to_be_on_main_and_docs_say_the_wheel_
     assert "merge-base --is-ancestor" in wf and "origin/main" in wf
     assert "standalone" in (ROOT / "README.md").read_text(encoding="utf-8")
     assert "standalone" in (ROOT / "docs" / "versioning.md").read_text(encoding="utf-8")
+
+
+@pytest.mark.contract
+def test_every_workflow_action_is_pinned_to_a_full_commit_sha_with_its_version():
+    pinned = re.compile(r"^[\w.-]+/[\w./-]+@[0-9a-f]{40}\s+#\s*v\d+(\.\d+)*$")
+    found = 0
+    for path in sorted(WORKFLOWS.glob("*.yml")):
+        for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            m = re.search(r"\buses:\s*(\S.*)$", line)
+            if m and not m.group(1).startswith("./"):
+                found += 1
+                assert pinned.match(m.group(1).strip()), f"{path.name}:{n} is not pinned: {line}"
+    assert found >= 8

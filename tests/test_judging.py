@@ -403,3 +403,56 @@ def test_a_renamed_run_cannot_start_a_fresh_cap(tmp_path: Path) -> None:
             run_id="faithfulness-b",
             adapters=_adapters(Fake([i.explanation for i in items])),
         )
+
+
+def test_a_second_judging_run_on_the_same_ledger_is_refused_while_one_runs(tmp_path: Path) -> None:
+    """Two overlapping runs would each see the same remaining cap and together pass it (D-43)."""
+    import threading
+
+    _, items = _items()
+    ledger = tmp_path / "ledger.jsonl"
+    outcome: list[BaseException | None] = []
+
+    class Overlap(Fake):
+        started = False
+
+        async def complete(self, req: CompletionRequest) -> RawCompletion:
+            if not self.started:
+                self.started = True
+
+                def second() -> None:
+                    try:
+                        judging.judge(
+                            items,
+                            cap_usd=CAP,
+                            store_dir=tmp_path / "store2",
+                            ledger_path=ledger,
+                            adapters=_adapters(Fake([i.explanation for i in items])),
+                        )
+                        outcome.append(None)
+                    except BaseException as exc:
+                        outcome.append(exc)
+
+                t = threading.Thread(target=second)
+                t.start()
+                t.join()
+            return await super().complete(req)
+
+    judging.judge(
+        items,
+        cap_usd=CAP,
+        store_dir=tmp_path / "store",
+        ledger_path=ledger,
+        adapters=_adapters(Overlap([i.explanation for i in items])),
+    )
+    assert len(outcome) == 1 and isinstance(outcome[0], judging.JudgingRefused)
+    assert "lock" in str(outcome[0])
+    # the refused run billed nothing (one ledger line, from the first run), and the lock is free
+    assert len(ledger.read_text(encoding="utf-8").splitlines()) == 1
+    judging.judge(
+        items,
+        cap_usd=CAP,
+        store_dir=tmp_path / "store",
+        ledger_path=ledger,
+        adapters=_adapters(Fake([i.explanation for i in items])),
+    )

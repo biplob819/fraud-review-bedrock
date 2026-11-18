@@ -150,6 +150,18 @@ def append_history(path: Path | str, line: Mapping[str, Any]) -> None:
     _append(path, line)
 
 
+def append_history_once(path: Path | str, line: Mapping[str, Any]) -> bool:
+    """MON-01: append the line unless that run (same id and digest) is already in the history.
+    True when a line was added, so scoring one run twice leaves one line."""
+    if any(
+        row.get("run_id") == line.get("run_id") and row.get("digest") == line.get("digest")
+        for row in read_jsonl(path)
+    ):
+        return False
+    append_history(path, line)
+    return True
+
+
 def read_jsonl(path: Path | str) -> list[dict[str, Any]]:
     path = Path(path)
     if not path.is_file():
