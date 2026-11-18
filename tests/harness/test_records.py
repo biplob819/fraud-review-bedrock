@@ -144,7 +144,7 @@ def _tracked_text_files():
         ["git", "ls-files", "-z"], cwd=ROOT, capture_output=True, check=True
     ).stdout.decode("utf-8")
     for rel in filter(None, out.split("\0")):
-        if Path(rel).suffix in {".png", ".whl"}:
+        if Path(rel).suffix in {".png", ".gif", ".whl"}:
             continue
         blob = subprocess.run(
             ["git", "show", f":{rel}"], cwd=ROOT, capture_output=True, check=True

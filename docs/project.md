@@ -12,6 +12,10 @@ Card-fraud teams review many alerts, and most turn out to be legitimate. This ag
 
 The video is not part of this release, so here is the same walk in pictures.
 
+![Walkthrough of the key screens](assets/walkthrough.gif)
+
+The [walkthrough shot list](walkthrough.md) names each screen and its source.
+
 1. A baseline model scores the alert. Only allow-listed fields reach the agent: amount, category, how common that category is on the card, hour, day of week, risk score, spend against usual, card history and whether the merchant is new.
 2. Haiku screens it. If it proposes a clear, the router checks that a cited clearing clause holds and no never-clear clause does, and that the risk score and confidence are within limits. Otherwise Sonnet reviews it.
 3. The analyst sees the case with the reasons, the cited clauses and the baseline's score drivers side by side.

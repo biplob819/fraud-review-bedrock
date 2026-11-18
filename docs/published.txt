@@ -17,3 +17,4 @@ docs/guide/privacy.md
 docs/versioning.md
 docs/project.md
 docs/prd-onepager.md
+docs/walkthrough.md
