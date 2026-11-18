@@ -11,9 +11,14 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from evalkit.adapters import ModelAdapter
-from evalkit.adapters.base import BatchRequest, BatchResult, CompletionRequest, RawCompletion
-from evalkit.scorers.faithfulness import FaithfulnessResult, JudgedClaim
+from evalkit.adapters import (
+    BatchRequest,
+    BatchResult,
+    CompletionRequest,
+    ModelAdapter,
+    RawCompletion,
+)
+from evalkit.scorers.faithfulness import FaithfulnessItem, FaithfulnessResult, JudgedClaim
 
 from fraudreview import judging
 from fraudreview.prompts import GLOSSARY
@@ -120,7 +125,7 @@ def test_estimate_prints_a_table_and_refuses_over_the_cap() -> None:
     _, items = _items()
     est = judging.estimate(items)
     assert est["items"] == 3 and est["claims"] >= 3
-    assert {ln["node"] for ln in est["lines"]} == {"extract_claims", "judge"}
+    assert {ln["node"] for ln in est["lines"]} == {"extract_faithfulness_claims", "judge"}
     assert len(est["judges"]) == 2 and est["total_usd"] > 0
     assert "estimated total" in judging.format_estimate(est)
     with pytest.raises(judging.JudgingRefused):
@@ -186,7 +191,7 @@ def test_the_ledger_line_is_written_even_if_judging_raises(tmp_path: Path) -> No
 
 
 def test_spend_stops_at_the_cap(tmp_path: Path) -> None:
-    from evalkit.runtime.executor import BudgetExceeded
+    from evalkit.runtime import BudgetExceeded
 
     _, items = _items()
     fake = Fake([i.explanation for i in items])
@@ -283,7 +288,7 @@ def test_every_judge_failing_is_none() -> None:
 
 
 def test_eval_config_has_two_families() -> None:
-    from evalkit.pipeline.generate import provider_for
+    from evalkit.providers import provider_for
 
     cfg = judging.eval_config()
     assert {provider_for(j) for j in cfg.judges} == {"anthropic", "openai"}
@@ -354,7 +359,7 @@ def test_committed_faithfulness_summary_is_an_honest_opus_only_partial():
 @pytest.mark.safety
 def test_the_cap_is_a_total_across_reruns_of_the_same_run(tmp_path: Path) -> None:
     """A rerun must not restart the cap (the overspend of OWNER D-43)."""
-    from evalkit.runtime.executor import BudgetExceeded
+    from evalkit.runtime import BudgetExceeded
 
     _, items = _items()
     fake = Fake([i.explanation for i in items])
@@ -376,12 +381,45 @@ def test_the_cap_is_a_total_across_reruns_of_the_same_run(tmp_path: Path) -> Non
         judging.judge(items, cap_usd=judging.spent_for(ledger, "r"), **kwargs)  # type: ignore[arg-type]
 
 
-def test_dry_run_warns_that_the_default_claims_per_item_is_a_planning_figure(capsys):
-    _, items = _items()
-    text = judging.format_estimate(judging.estimate(items))
-    assert "WARNING" in text and "planning default" in text and "12.1" in text
-    measured = judging.format_estimate(judging.estimate(items, claims_per_item=12.1))
-    assert "WARNING" not in measured
+def test_estimate_counts_claims_from_the_explanations_and_has_no_planning_warning():
+    # EvalKit 0.4 (D-76) counts claims from the texts, so a facts-heavy explanation plans above
+    # the old 4.5 default without any project-side figure, and the 2.7x warning is gone.
+    long_text = " ".join(
+        f"The {name} is {value} and the policy clause applies to it."
+        for name, value in [
+            ("amount", "812.40"),
+            ("hour", "3"),
+            ("risk score", "0.83"),
+            ("account age in days", "14"),
+            ("distance in km", "420"),
+            ("velocity", "6"),
+            ("merchant risk", "0.7"),
+            ("device age", "2"),
+            ("country mismatch", "1"),
+            ("prior declines", "4"),
+        ]
+    )
+    item = FaithfulnessItem(
+        id="d0", question=judging.QUESTION, explanation=long_text, evidence=("a.",)
+    )
+    est = judging.estimate([item])
+    assert est["claims_per_item"] > 4.5 and est["claims_basis"] == "texts"
+    text = judging.format_estimate(est)
+    assert "WARNING" not in text and "planning default" not in text and "2.7" not in text
+    assert "an expected cost, not an upper bound" in text
+    measured = judging.estimate([item], claims_per_item=12.1)
+    assert measured["claims_per_item"] == 12.1 and measured["claims_basis"] == "measured"
+
+
+def test_value_check_is_public_in_evalkit_and_strict_on_a_facts_line():
+    # EvalKit 0.4 (D-77) publishes a strict value_check for facts lines; this project keeps its own
+    # `valuecheck` for prose (D-42), and neither may call a false claim verified.
+    from evalkit.scorers import value_check
+
+    record = {"amount": 812.4, "hour": 3}
+    good = value_check("Facts: amount is 812.4. hour is 3.", record)
+    bad = value_check("Facts: amount is 900. hour is 3.", record)
+    assert good.value == 1.0 and bad.value != 1.0
 
 
 @pytest.mark.safety

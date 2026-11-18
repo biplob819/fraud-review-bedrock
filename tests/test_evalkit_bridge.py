@@ -18,7 +18,7 @@ from fraudreview.router import RouterSettings, check_clear
 ROOT = Path(__file__).resolve().parent.parent
 POLICY = load_policy(ROOT / "policy.md")
 RULES = b.ruleset(POLICY)
-PIN = "4ddfef50d55db653aaf57048af06f2ba606e1573"
+PIN = "0.4.0"  # the PyPI release; EvalKit tag v0.4.0, commit f9cbc8e
 AT = datetime(2026, 1, 5, 14, 30, tzinfo=UTC)
 LOOSE = RouterSettings(clear_ceiling=0.99, clear_min_confidence=0.5)  # rules 5-6 kept out
 
@@ -223,13 +223,12 @@ def test_value_shares_counts_every_reason_and_agrees_with_valuecheck():
 
 
 @pytest.mark.contract
-def test_evalkit_is_pinned_to_the_v0_3_commit_and_its_api_imports():
+def test_evalkit_is_pinned_to_the_v0_4_release_and_its_api_imports():
     project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     pin = next(x for x in project["project"]["dependencies"] if x.startswith("evalkit-harness"))
-    assert (
-        pin == f"evalkit-harness[anthropic,openai] @ git+https://github.com/biplob819/evalkit@{PIN}"
-    )
-    assert PIN in (ROOT / "uv.lock").read_text(encoding="utf-8")
+    assert pin == f"evalkit-harness[anthropic,openai]=={PIN}"
+    lock = (ROOT / "uv.lock").read_text(encoding="utf-8")
+    assert f'name = "evalkit-harness"\nversion = "{PIN}"\nsource = {{ registry' in lock
     from evalkit.scorers import (  # noqa: F401
         Rule,
         RuleError,

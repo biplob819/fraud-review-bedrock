@@ -154,8 +154,8 @@ def build_parser() -> argparse.ArgumentParser:
     jd.add_argument(
         "--claims-per-item",
         type=float,
-        help="claims per explanation to plan with (this project's explanations measured about "
-        "12; the default planning figure is far lower)",
+        help="claims per explanation to plan with, measured on a small sample; without it "
+        "EvalKit counts the claims from the explanations themselves",
     )
     jd.add_argument(
         "--out", type=Path, help="where to write results (default: <run>/faithfulness.json)"
@@ -195,7 +195,7 @@ def _judge(args: argparse.Namespace) -> int:
         return 2
     if args.dry_run:
         return 0
-    from evalkit.runtime.executor import BudgetExceeded
+    from evalkit.runtime import BudgetExceeded
 
     load_env_file(Path(".env"))
     out = args.out or args.run / "faithfulness.json"

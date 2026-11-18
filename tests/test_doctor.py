@@ -298,15 +298,13 @@ def test_kaggle_token_is_reported_but_never_shown():
 
 
 @pytest.mark.contract
-def test_evalkit_is_pinned_to_an_exact_commit_and_imports():
+def test_evalkit_is_pinned_to_an_exact_release_and_imports():
     deps = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"][
         "dependencies"
     ]
     pin = next(x for x in deps if x.startswith("evalkit-harness"))  # exact in every installer
-    assert re.fullmatch(
-        r"evalkit-harness(\[[a-z,]+\])? @ git\+https://github\.com/biplob819/evalkit@[0-9a-f]{40}",
-        pin,
-    )
+    assert re.fullmatch(r"evalkit-harness(\[[a-z,]+\])?==\d+\.\d+\.\d+", pin)
+    assert pin.endswith(f"=={d.EVALKIT_VERSION}")
     check = d.check_evalkit()
     assert check.status == "ok" and d.EVALKIT_VERSION in check.detail
 

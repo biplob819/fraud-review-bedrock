@@ -4,6 +4,8 @@ Format: `[TYPE] [NODE] — summary`. Types: FEAT, FIX, DOCS, HARNESS, RELEASE.
 
 ## v0.2
 - [FIX] [E2.2, E2.4, D4.3] — a lock on the spend ledger lets only one `fraud judge` run at a time spend against the cap, so overlapping runs cannot pass it together (a second run is refused with a message); `fraud monitor` run twice on one run adds one history line, not two; `fraud experiment` refuses runs that are not dev runs and a labels file named for another split; every GitHub workflow action is pinned to a full commit SHA with its version in a trailing comment, checked by a test
+- [DOCS] [E2.5] — EvalKit moves from v0.3.0 to v0.4.0 from PyPI (D-46): the doctor pins 0.4.0, six internal imports are now public and four more use their public paths, and `uv.lock` resolves the PyPI release instead of a GitHub commit
+- [FEAT] [E2.2] — the judging dry run uses EvalKit's own claims-based estimate (`estimate_faithfulness_cost`), so the 2.7x planning warning is gone; the estimate states where its claims-per-item figure comes from and `--claims-per-item` still takes a measured one. No model call was made
 
 ## v0.1.0
 - [DOCS] [—] — README shows the looping walkthrough GIF (`docs/assets/walkthrough.gif`) near the top, linked to its shot list; owner request
