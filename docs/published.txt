@@ -8,3 +8,4 @@ docs/measurements/summary-eval2.json
 docs/patterns.md
 docs/roi/README.md
 docs/discovery-summary.md
+docs/pr-faq.md

@@ -3,6 +3,7 @@
 Format: `[TYPE] [NODE] — summary`. Types: FEAT, FIX, DOCS, HARNESS, RELEASE.
 
 ## 2026-11-17
+- [FEAT] [B3.2] — press release and FAQ: a two-page story with a customer FAQ and an internal FAQ that names model risk review, the leakage bar (0 of 55 frauds, exact upper bound 5.3%, simulated data) and what real data would change; a test ties every number to the evaluation summary
 - [FEAT] [B3.1] — ROI model: a workbook with marked input cells and formula cells, a Python copy of the same formulas that a test checks against it on three input sets, and a README with a worked example; the auto-clear rate, fraud share and leakage defaults come from the simulated evaluation, the leakage default being its exact upper bound, and every other default is labelled illustrative; at that bound the default model shows no payback, because 0 leaks in 55 frauds cannot rule out a loss that size
 - [FEAT] [B3.4] — discovery summary: one illustrative page on alert volumes, who touches an alert, constraints and success criteria, with figures equal to the ROI defaults
 - [FEAT] [B3.5] — patterns page: four reusable patterns (policy as code with a router, a review queue with a hash-chained audit log, explanation checks, a cost model with a spend cap), each with its evidence and limits, and checked against the repo by tests
