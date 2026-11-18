@@ -945,7 +945,7 @@ Each row becomes one line in `docs/graph/catalog.tsv` with status `not-started`.
 | Cap | Capability | Trace |
 | --- | --- | --- |
 | OSS-01 | CONTRIBUTING, SECURITY (credential handling, how to report a vulnerability), CODE_OF_CONDUCT, issue and PR templates | D-26 |
-| OSS-02 | Quickstart: `fraud report --example` and the replay demo with no keys, then `fraud doctor`, `--dry-run`, `--max-cost` and a run with the user's own Bedrock or Anthropic credentials | D-26, D-27 |
+| OSS-02 | Quickstart: `fraud report --example` and the replay demo with no keys, then `fraud doctor`, `--dry-run`, the `max_cost_usd` cap in `config.yaml` and a run with the user's own Bedrock or Anthropic credentials | D-26, D-27 |
 | OSS-03 | Docs: writing your own `policy.md`, bringing your own alert data, controlling cost, privacy statement (no telemetry; data goes only to the configured provider) | D-26, §8 |
 | OSS-04 | Semver policy, changelog, release workflow that builds the wheel and attaches it to a tagged GitHub release; v0.1.0 tagged (PyPI only on the owner's approval) | D-26 |
 | OSS-05 | Fresh-clone CI smoke on Linux and macOS: clone, `uv sync`, `fraud --version`, `fraud report --example` | D-26 |
