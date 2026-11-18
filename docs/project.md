@@ -4,7 +4,7 @@
 
 ## What it is
 
-Card-fraud teams review many alerts, and most turn out to be legitimate. This agent reads each alert first. Claude Haiku 5.5 screens it, and Claude Sonnet 5.5 reviews what Haiku will not clear. A router written in code decides whether a clear is allowed. Anything that is not cleared goes to a person, with reasons, policy clauses and evidence beside it. The agent has no tool to block a card or contact anyone.
+Card-fraud teams review many alerts, and most turn out to be legitimate. This agent reads each alert first. Claude Haiku 5.5 screens it, and Claude Sonnet 5.5 reviews the alerts Haiku passes on. A router written in code decides whether a clear is allowed. Anything that is not cleared goes to a person, with reasons, policy clauses and evidence beside it. The agent has no tool to block a card or contact anyone.
 
 ![Architecture](assets/architecture.png)
 
@@ -12,7 +12,7 @@ Card-fraud teams review many alerts, and most turn out to be legitimate. This ag
 
 The video is not part of this release, so here is the same walk in pictures.
 
-1. A baseline model scores the alert. Only allow-listed fields reach the agent: amount, category, hour, risk score, spend against usual, card history and whether the merchant is new.
+1. A baseline model scores the alert. Only allow-listed fields reach the agent: amount, category, how common that category is on the card, hour, day of week, risk score, spend against usual, card history and whether the merchant is new.
 2. Haiku screens it. If it proposes a clear, the router checks that a cited clearing clause holds and no never-clear clause does, and that the risk score and confidence are within limits. Otherwise Sonnet reviews it.
 3. The analyst sees the case with the reasons, the cited clauses and the baseline's score drivers side by side.
 

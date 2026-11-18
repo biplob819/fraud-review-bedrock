@@ -22,6 +22,7 @@ All the goals above, on simulated data, with these results: 0 of 55 frauds auto-
 
 ## What changed from the plan
 
+- A late-night rule was added after the first evaluation failed: no auto-clear from 10 p.m. to 6 a.m. (clause P5.9, decision D-40). It cost automation, taking auto-clear from 36.8% to 8.8% (simulated data).
 - The published runs use the Claude API. Amazon Bedrock stays a supported path and was not run for the results (decision D-35).
 - The demo is a replay that runs on your own machine. The hosted version is planned for v0.2 (D-44).
 - There is no video (D-45).

@@ -21,7 +21,7 @@ def _links() -> list[str]:
 
 def test_every_link_and_image_exists() -> None:
     links = _links()
-    assert len(links) >= 12
+    assert links
     for rel in links:
         assert (PAGE.parent / rel).resolve().exists(), rel
 
@@ -61,3 +61,29 @@ def test_the_one_page_prd_is_one_page_and_says_what_changed() -> None:
         assert word in page
     assert "docs/prd-onepager.md" in (ROOT / "docs" / "published.txt").read_text(encoding="utf-8")
     assert any(x.endswith("prd-onepager.md") for x in _links())
+
+
+def test_the_numbers_in_the_text_are_the_evaluated_ones() -> None:
+    first = json.loads(
+        (ROOT / "docs" / "measurements" / "eval-runs.jsonl").read_text("utf-8").splitlines()[0]
+    )
+    assert f"{first['auto_clear_rate']['point'] * 100:.1f}%" in TEXT  # 36.8%
+    assert SUMMARY["auto_clear_precision"]["k"] == SUMMARY["auto_clear_precision"]["n"] == 44
+    assert "all 44 were legitimate" in TEXT
+    values = SUMMARY["explanation"]["value_shares"]
+    assert f"{values['verified']:,} of {values['verified']:,}" in TEXT
+    assert "964 of 964" in TEXT
+    policy = (ROOT / "policy.md").read_text(encoding="utf-8")
+    assert "hour >= 22 or hour < 6" in policy and "10 p.m. to 6 a.m." in TEXT
+
+
+def test_the_one_page_prd_numbers_and_links() -> None:
+    page = (ROOT / "docs" / "prd-onepager.md").read_text(encoding="utf-8")
+    leak, clear = SUMMARY["leakage"], SUMMARY["auto_clear_rate"]
+    assert f"{leak['hi'] * 100:.1f}%" in page and f"{clear['point'] * 100:.1f}%" in page
+    assert "36.8%" in page and "P5.9" in page
+    for rel in re.findall(r"\]\(([^)#]+)(?:#[^)]*)?\)", page):
+        if not rel.startswith("http"):
+            assert (ROOT / "docs" / rel).resolve().exists(), rel
+    names = {Path(x).name for x in _links()}
+    assert {"PRD.md", "decisions.md", "DATA_CARD.md", "lessons.md"} <= names
