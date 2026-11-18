@@ -18,7 +18,7 @@ from fraudreview.router import RouterSettings, check_clear
 ROOT = Path(__file__).resolve().parent.parent
 POLICY = load_policy(ROOT / "policy.md")
 RULES = b.ruleset(POLICY)
-PIN = "0.4.0"  # the PyPI release; EvalKit tag v0.4.0, commit f9cbc8e
+PIN = "0.4.1"  # the PyPI release; EvalKit tag v0.4.1, commit b4be5a5
 AT = datetime(2026, 1, 5, 14, 30, tzinfo=UTC)
 LOOSE = RouterSettings(clear_ceiling=0.99, clear_min_confidence=0.5)  # rules 5-6 kept out
 

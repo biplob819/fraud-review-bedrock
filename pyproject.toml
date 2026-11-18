@@ -19,7 +19,7 @@ dependencies = [
     "shap>=0.46",
     "scipy>=1.13",
     "numpy>=1.26",
-    "evalkit-harness[anthropic,openai]==0.4.0",  # PyPI release, the v0.4.0 tag (B5.2, B5.13, v0.2 lane A)
+    "evalkit-harness[anthropic,openai]==0.4.1",  # PyPI release, the v0.4.1 tag (B5.2, B5.13, v0.2 lane A)
 ]
 
 [project.urls]
