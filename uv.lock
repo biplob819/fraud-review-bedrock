@@ -380,6 +380,7 @@ demo = [
 [package.dev-dependencies]
 dev = [
     { name = "openpyxl" },
+    { name = "pillow" },
     { name = "pyright" },
     { name = "pytest" },
     { name = "ruff" },
@@ -407,6 +408,7 @@ provides-extras = ["demo"]
 [package.metadata.requires-dev]
 dev = [
     { name = "openpyxl", specifier = ">=3.1.5" },
+    { name = "pillow", specifier = ">=11" },
     { name = "pyright", specifier = ">=1.1.380" },
     { name = "pytest", specifier = ">=8" },
     { name = "ruff", specifier = ">=0.6" },
