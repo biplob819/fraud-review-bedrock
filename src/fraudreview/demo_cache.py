@@ -8,6 +8,9 @@ out. Each line carries the Alert view, the agent's decisions (action, reasons, c
 confidence) and the disposition with its router refusals. Request ids, tokens, costs and hashes
 of the provider call are not copied: the demo shows the decision, not the call.
 
+A case whose merchant name or any other text matches the public-content guard
+(`fraudreview.content_guard`) is skipped and counted, so a guarded term never reaches the file.
+
 Every input line is validated against its schema, so the replay file only holds records the
 pipeline itself could have written.
 """
@@ -19,6 +22,7 @@ from collections.abc import Callable, Iterable
 from pathlib import Path
 from typing import Any
 
+from fraudreview.content_guard import find_private
 from fraudreview.schemas import SCHEMA_VERSION, Disposition, TriageDecision
 from fraudreview.truth import Alert
 
@@ -69,8 +73,28 @@ def decision_view(d: TriageDecision) -> dict[str, Any]:
     }
 
 
+def _strings(value: Any) -> Iterable[str]:
+    """Every string in a JSON-like value: keys and leaves."""
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, dict):
+        for k, v in value.items():
+            yield str(k)
+            yield from _strings(v)
+    elif isinstance(value, list):
+        for v in value:
+            yield from _strings(v)
+
+
 def build_replay(run_dir: Path, alerts_path: Path) -> list[dict[str, Any]]:
     """The replay records for one run, in queue order (priority, then standard, then risk)."""
+    return build_replay_guarded(run_dir, alerts_path)[0]
+
+
+def build_replay_guarded(
+    run_dir: Path, alerts_path: Path, guard_file: Path | None = None
+) -> tuple[list[dict[str, Any]], int]:
+    """(records in queue order, number of cases skipped because their text is guarded)."""
     decisions = _read(run_dir / "decisions.jsonl", TriageDecision.model_validate_json)
     dispositions = _read(run_dir / "dispositions.jsonl", Disposition.model_validate_json)
     alerts = _read(alerts_path, Alert.model_validate_json)
@@ -81,6 +105,7 @@ def build_replay(run_dir: Path, alerts_path: Path) -> list[dict[str, Any]]:
     if len({d.alert_id for d in dispositions}) != len(dispositions):
         raise DemoCacheError(f"{run_dir / 'dispositions.jsonl'}: an alert has two dispositions")
     records: list[dict[str, Any]] = []
+    skipped = 0
     for disp in dispositions:
         if disp.final == "auto_cleared" or disp.queue is None:
             continue  # never reached a person; not part of the review queue
@@ -96,22 +121,24 @@ def build_replay(run_dir: Path, alerts_path: Path) -> list[dict[str, Any]]:
                     "which is not in decisions.jsonl for that alert"
                 )
             views.append(decision_view(d))
-        records.append(
-            {
-                "schema_version": SCHEMA_VERSION,
-                "data_label": "simulated",
-                "alert": alert.model_dump(mode="json"),
-                "decisions": sorted(views, key=lambda v: v["stage"]),
-                "disposition": {
-                    "final": disp.final,
-                    "queue": disp.queue,
-                    "decided_at_stage": disp.decided_at_stage,
-                    "router_refusals": list(disp.router_refusals),
-                },
-            }
-        )
+        record = {
+            "schema_version": SCHEMA_VERSION,
+            "data_label": "simulated",
+            "alert": alert.model_dump(mode="json"),
+            "decisions": sorted(views, key=lambda v: v["stage"]),
+            "disposition": {
+                "final": disp.final,
+                "queue": disp.queue,
+                "decided_at_stage": disp.decided_at_stage,
+                "router_refusals": list(disp.router_refusals),
+            },
+        }
+        if find_private(_strings(record), guard_file) is not None:
+            skipped += 1  # the matched text is not echoed: it is private
+            continue
+        records.append(record)
     records.sort(key=order_key)
-    return records
+    return records, skipped
 
 
 def order_key(record: dict[str, Any]) -> tuple[int, float, str]:
@@ -125,11 +152,16 @@ def to_line(record: dict[str, Any]) -> str:
 
 
 def write_replay(
-    run_dir: Path, alerts_path: Path, out: Path = DEFAULT_OUT, max_cases: int | None = None
-) -> tuple[int, int]:
-    """Write the replay file; returns (cases written, bytes). `max_cases` keeps the first n in
-    queue order, so every held case is kept before any escalated one."""
-    records = build_replay(run_dir, alerts_path)
+    run_dir: Path,
+    alerts_path: Path,
+    out: Path = DEFAULT_OUT,
+    max_cases: int | None = None,
+    guard_file: Path | None = None,
+) -> tuple[int, int, int]:
+    """Write the replay file; returns (cases written, bytes, cases skipped by the content
+    guard). `max_cases` keeps the first n in queue order, so every held case is kept before
+    any escalated one."""
+    records, skipped = build_replay_guarded(run_dir, alerts_path, guard_file)
     if max_cases is not None:
         records = records[:max_cases]
     data = "".join(to_line(r) + "\n" for r in records).encode("ascii")
@@ -139,4 +171,4 @@ def write_replay(
         )
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_bytes(data)
-    return len(records), len(data)
+    return len(records), len(data), skipped
