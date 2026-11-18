@@ -5,3 +5,5 @@ DATA_CARD.md
 docs/case-study.md
 docs/dashboard.html
 docs/measurements/summary-eval2.json
+docs/roi/README.md
+docs/discovery-summary.md

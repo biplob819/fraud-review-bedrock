@@ -47,6 +47,7 @@ dev = [
     "ruff>=0.6",
     "pyright>=1.1.380",
     "types-pyyaml>=6.0.12.20261113",
+    "openpyxl>=3.1.5",
 ]
 
 [build-system]
@@ -74,6 +75,7 @@ ignore = ["RUF001", "RUF002", "RUF003"]  # allow the › separator used in proof
 
 [tool.ruff.lint.per-file-ignores]
 "src/fraudreview/report.py" = ["E501"]  # inline SVG and CSS strings
+"scripts/build_roi.py" = ["E501"]  # wide table of input rows and sheet text
 
 [tool.pyright]
 include = ["src", "scripts", "tests", "demo"]
