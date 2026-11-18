@@ -135,7 +135,7 @@ Model calls cost money, and an agent loop can spend a lot before anyone looks. A
 
 ### Pattern
 
-Before a call, reserve the worst case it could bill. After the call, settle the reservation with what it billed. If the reservation does not fit under the cap, refuse the call. Settle on every path, including errors. Write one line per run to a public ledger. Count the ledger when you check the cap, so the cap is a total across reruns.
+Before a call, reserve the worst case it could bill. After the call, settle the reservation with what it billed. If the reservation does not fit under the cap, refuse the call. Settle on every path, including errors. Write one line per run to a public ledger. Count the ledger when you check the cap, so the cap is a total across reruns. In this repo `SpendCap` is in memory only; the ledger count is the caller's job, and `judging.spent_for` does it for judging.
 
 Excerpt from `src/fraudreview/llm.py`:
 
@@ -151,9 +151,10 @@ Excerpt from `src/fraudreview/llm.py`:
 
 - `src/fraudreview/cost.py`: `Estimate`, `SpendCap`, dry-run lines.
 - `src/fraudreview/llm.py`: `settled_call` and the worst-case price.
-- `src/fraudreview/ledger.py`: the ledger and `total_spend`.
+- `src/fraudreview/ledger.py`: the ledger lines.
+- `src/fraudreview/judging.py`: `spent_for`, which sums the ledger so a rerun cannot restart the cap.
 - `docs/measurements/spend-ledger.jsonl`: the public ledger.
-- Tests: `tests/test_judging.py`.
+- Tests: `tests/test_judging.py` and `tests/test_llm.py` (`test_settled_call_records_spend_on_every_path`).
 
 ### Evidence from this project
 
