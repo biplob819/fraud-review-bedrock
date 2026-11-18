@@ -2,6 +2,10 @@
 
 Format: `[TYPE] [NODE] — summary`. Types: FEAT, FIX, DOCS, HARNESS, RELEASE.
 
+## v0.2
+- [DOCS] [E2.5] — EvalKit moves from v0.3.0 to v0.4.0 from PyPI (D-46): the doctor pins 0.4.0, six internal imports are now public and four more use their public paths, and `uv.lock` resolves the PyPI release instead of a GitHub commit
+- [FEAT] [E2.2] — the judging dry run uses EvalKit's own claims-based estimate (`estimate_faithfulness_cost`), so the 2.7x planning warning is gone; the estimate states where its claims-per-item figure comes from and `--claims-per-item` still takes a measured one. No model call was made
+
 ## v0.1.0
 - [DOCS] [—] — README shows the looping walkthrough GIF (`docs/assets/walkthrough.gif`) near the top, linked to its shot list; owner request
 - [DOCS] [D4.2] — a looping walkthrough GIF of the key screens (nine frames, simulated data, no spend shown) stands in for a video, with a shot list and a script that rebuilds it

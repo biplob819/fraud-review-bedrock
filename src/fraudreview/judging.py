@@ -27,25 +27,31 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
-import math
 import os
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, ClassVar
 
-from evalkit.adapters import ModelAdapter
-from evalkit.adapters.base import BatchRequest, BatchResult, CompletionRequest, RawCompletion
-from evalkit.cost import Price, TokenAssumptions, estimate_run_cost, estimate_tokens, load_prices
+from evalkit.adapters import (
+    BatchRequest,
+    BatchResult,
+    CompletionRequest,
+    ModelAdapter,
+    RawCompletion,
+)
+from evalkit.cost import Price, load_prices
 from evalkit.env import KEYS, missing_keys
-from evalkit.pipeline.extract import FAITHFULNESS_EXTRACTOR_PROMPT, FAITHFULNESS_QUESTION_RULE
-from evalkit.pipeline.generate import provider_for
-from evalkit.pipeline.judge import JUDGE_RUBRIC
+from evalkit.providers import provider_for
 from evalkit.run import make_adapters
-from evalkit.runtime import Executor
-from evalkit.runtime.store import Store
+from evalkit.runtime import Executor, Store
 from evalkit.schemas import RunConfig as EvalKitConfig
-from evalkit.scorers.faithfulness import FaithfulnessItem, FaithfulnessResult, faithfulness
+from evalkit.scorers.faithfulness import (
+    FaithfulnessItem,
+    FaithfulnessResult,
+    estimate_faithfulness_cost,
+    faithfulness,
+)
 
 from fraudreview import evalkit_bridge
 from fraudreview.ledger import LEDGER, append_spend
@@ -125,22 +131,6 @@ def build_items(
 # ------------------------------------------------------------------ estimate
 
 
-def _assumptions(items: Sequence[FaithfulnessItem], claims_per_item: float | None) -> Any:
-    base = TokenAssumptions()
-    n = max(1, len(items))
-    mean_explanation = sum(estimate_tokens(i.question, i.explanation) for i in items) / n
-    mean_evidence = sum(estimate_tokens(*i.evidence) for i in items) / n
-    extractor_prompt = estimate_tokens(FAITHFULNESS_EXTRACTOR_PROMPT, FAITHFULNESS_QUESTION_RULE)
-    judge_prompt = estimate_tokens(JUDGE_RUBRIC)
-    return base.model_copy(
-        update={
-            "t_ext_in": math.ceil(extractor_prompt + mean_explanation),
-            "t_j_in": math.ceil(judge_prompt + mean_evidence + 40),
-            "claims_per_answer": claims_per_item or base.claims_per_answer,
-        }
-    )
-
-
 def estimate(
     items: Sequence[FaithfulnessItem],
     config: EvalKitConfig | None = None,
@@ -150,27 +140,28 @@ def estimate(
     cap_usd: float | None = None,
 ) -> dict[str, Any]:
     """EvalKit's own estimate for faithfulness on these items (no API call): one extractor call
-    per item, then one live judge call per claim per judge. Token counts are EvalKit's planning
-    averages, with the prompt sizes taken from these items. Raises `JudgingRefused` if the total
-    is over `cap_usd`."""
+    per item, then one live judge call per claim per judge. EvalKit counts the claims from the
+    explanations themselves and sizes every prompt from each item (D-76), so no planning figure
+    is needed; `claims_per_item` replaces the count with one measured on a sample. Raises
+    `JudgingRefused` if the total is over `cap_usd`."""
     config = config or eval_config()
     prices = prices if prices is not None else load_prices()
-    a = _assumptions(items, claims_per_item)
-    est = estimate_run_cost(
-        prices,
-        models=config.models,
-        extractor=config.extractor,
-        judges=config.judges,
-        n_cases=len(items),
-        assumptions=a,
-        batch_judges=False,  # live judging: full price, no batch discount
+    est = estimate_faithfulness_cost(
+        items,
+        config=config,
+        prices=prices,
+        live=True,  # live judging: full price, no batch discount
+        claims_per_item=claims_per_item,
+        claims_source="--claims-per-item",
     )
-    lines = [ln for ln in est.lines if ln.node != "generate"]  # nothing is generated here
+    lines = est.lines  # nothing is generated here, so there is no generate line
     total = sum(ln.usd for ln in lines)
     out: dict[str, Any] = {
         "items": len(items),
-        "claims_per_item": a.claims_per_answer,
-        "claims": math.ceil(len(items) * a.claims_per_answer),
+        "claims_per_item": est.claims.per_item,
+        "claims": est.claims.calls(len(items)),
+        "claims_basis": est.claims.basis,
+        "claims_source": est.claims.source,
         "extractor": config.extractor,
         "judges": list(config.judges),
         "lines": [
@@ -189,10 +180,6 @@ def estimate(
     return out
 
 
-PLANNING_CLAIMS_PER_ITEM = 4.5  # EvalKit's default, measured on short PubMedQA answers
-MEASURED_CLAIMS_PER_ITEM = 12.1  # measured on this project's explanations (OWNER D-43)
-
-
 def format_estimate(est: Mapping[str, Any]) -> str:
     rows = [("step", "model", "calls", "usd")]
     rows += [(ln["node"], ln["model"], str(ln["calls"]), f"{ln['usd']:.4f}") for ln in est["lines"]]
@@ -208,13 +195,10 @@ def format_estimate(est: Mapping[str, Any]) -> str:
     )
     cap = "" if est.get("cap_usd") is None else f" (cap ${est['cap_usd']:g})"
     lines = [head, *table, f"estimated total ${est['total_usd']:.2f}{cap}"]
-    if est["claims_per_item"] <= PLANNING_CLAIMS_PER_ITEM + 1e-9:
+    if "claims_source" in est:
         lines.append(
-            f"WARNING: {est['claims_per_item']:g} claims per item is a planning default; this "
-            f"project's explanations measured {MEASURED_CLAIMS_PER_ITEM:g}, so a real run costs "
-            f"at least {MEASURED_CLAIMS_PER_ITEM / est['claims_per_item']:.1f}x this estimate "
-            "(the Opus judge also cost about 1.5x its per-claim estimate). "
-            "Pass --claims-per-item to plan with a measured figure."
+            f"claims per item: {est['claims_per_item']:.1f} ({est['claims_basis']}: "
+            f"{est['claims_source']}); an expected cost, not an upper bound"
         )
     return "\n".join(lines)
 

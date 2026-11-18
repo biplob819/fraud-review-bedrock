@@ -25,7 +25,7 @@ from fraudreview.config import ConfigError, RunConfig, load_config
 from fraudreview.router import guard_request
 
 Status = Literal["ok", "warn", "fail", "skip"]
-EVALKIT_VERSION = "0.3.0"  # evalkit.__version__ at the pinned v0.3.0 tag (E2.5)
+EVALKIT_VERSION = "0.4.0"  # evalkit.__version__ at the pinned v0.4.0 release (v0.2 lane A)
 PRICE_MAX_AGE_DAYS = 90
 PRICE_FIELDS = ("input", "output", "cache_read", "cache_write_5m", "cache_write_1h")
 

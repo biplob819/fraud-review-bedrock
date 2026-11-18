@@ -334,11 +334,15 @@ wheels = [
 
 [[package]]
 name = "evalkit-harness"
-version = "0.3.0"
-source = { git = "https://github.com/biplob819/evalkit?rev=4ddfef50d55db653aaf57048af06f2ba606e1573#4ddfef50d55db653aaf57048af06f2ba606e1573" }
+version = "0.4.0"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pydantic" },
     { name = "pyyaml" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/c5/f1/8dc5acb2fdd79d4e1a9cd0214abcb5d4e7b3c8f4ecfc3ee14db36162bd71/evalkit_harness-0.4.0.tar.gz", hash = "sha256:1695d3ff1ad28ea8c17830a77059bfc647c60d78545e25519947cb99615e949d", size = 469486, upload-time = "2026-11-18T11:05:26.01Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/24/29/b8868e53b0ab4b2cd90e42cea2f8b57d52190906a3b7859c42635683655c/evalkit_harness-0.4.0-py3-none-any.whl", hash = "sha256:7bceabbd9a47f3b884a6e35ca588159aea927c1901a7c6c8a888df9965f92030", size = 539318, upload-time = "2026-11-18T11:05:24.681Z" },
 ]
 
 [package.optional-dependencies]
@@ -386,7 +390,7 @@ dev = [
 requires-dist = [
     { name = "anthropic", extras = ["bedrock"], specifier = ">=1" },
     { name = "botocore", extras = ["crt"], specifier = ">=1.44.3" },
-    { name = "evalkit-harness", extras = ["anthropic", "openai"], git = "https://github.com/biplob819/evalkit?rev=4ddfef50d55db653aaf57048af06f2ba606e1573" },
+    { name = "evalkit-harness", extras = ["anthropic", "openai"], specifier = "==0.4.0" },
     { name = "lightgbm", specifier = ">=4" },
     { name = "markdown-it-py", specifier = ">=3" },
     { name = "numpy", specifier = ">=1.26" },
