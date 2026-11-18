@@ -270,6 +270,12 @@ def test_demo_import_closure_has_no_model_or_cloud_client():
     seen: set[str] = set()
     todo = ["fraudreview.demo"]
     reached: set[str] = set()
+    # the real entrypoint is demo/app.py: its own imports count, and so does what they reach
+    app = Path(__file__).resolve().parent.parent / "demo" / "app.py"
+    for imported in _imports(app, ""):
+        reached.add(imported)
+        if imported.split(".")[0] == "fraudreview" and _module_file(imported):
+            todo.append(imported)
     while todo:
         name = todo.pop()
         if name in seen:
@@ -449,3 +455,12 @@ def test_demo_cache_guard_defaults_to_the_shared_term_list(tmp_path):
     alerts.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
     _, skipped = build_replay_guarded(run, alerts)
     assert skipped == 1
+
+
+@pytest.mark.safety
+def test_a_banned_import_in_the_entrypoint_would_be_caught(tmp_path: Path):
+    """The closure walk must read demo/app.py itself (a scratch copy with a cloud import)."""
+    app = tmp_path / "app.py"
+    app.write_text("import boto3\nimport streamlit\n", encoding="utf-8")
+    found = _imports(app, "")
+    assert any(m == b or m.startswith(b + ".") for m in found for b in BANNED)

@@ -4,4 +4,4 @@
 - **DEM-02:** the screen shows the transaction, reasons with clause links, fields and drivers; there is no block button.
 - **DEM-03:** confirm, clear and override-with-comment write to a per-session audit chain that verifies and can be downloaded.
 - **DEM-04:** no cloud client or secret is in the demo package or its requirements.
-- **DEM-05:** deployed on Streamlit Community Cloud. Needs the owner to sign in; not done.
+- DEM-05 (the hosted deploy) moved out of v0.1.0 to v0.2 (OWNER D-44).

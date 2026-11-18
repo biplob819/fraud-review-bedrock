@@ -57,6 +57,8 @@ Each decision below seeds `docs/decisions.md` as D-1 to D-29.
 | D-41 | OWNER, through the question widget: (1) EvalKit may tag v0.3.0 as soon as its own gates pass, and this project then pins the tag; (2) up to about $10 of EvalKit judging spend (Anthropic and OpenAI keys) is pre-approved, and anything above $10 still asks first; (3) the results dashboard is hosted on GitHub Pages, built by this repo's workflow; (4) v0.1.0 ships the replay-only review screen, and the hosted passkey demo (D-31) moves to v0.2 once the AWS project can run Claude | Ask before the tag; ask at the time for judging spend; Streamlit Community Cloud for the dashboard; wait for the paid AWS plan; drop the passkey demo | Removes four waits from the critical path. The passkey demo needs the AWS paid plan and Claude access, which the project does not have |
 | D-42 | EvalKit's `value_check` leaves its v0.3.0 (EvalKit's D-74): independent verifiers kept finding false claims returned as verified, and a strict redesign is planned for its v0.4.0. This project checks the numbers in the agent's reasons with its own strict `valuecheck` module, with one rule that tests enforce: a false claim is never `verified`, and anything unsure is `unverifiable`. The outcomes are verified, contradicted and unverifiable. The pin moves to EvalKit v0.3.0 once tagged, for the rule-compliance scorer, `render_evidence` and `faithfulness`; the local module is replaced by EvalKit's checker only after its v0.4.0 passes the same false-claim test | Pin EvalKit's development `value_check`; wait for v0.4.0 | A published verification share is only worth reporting if no false claim can inflate it |
 | D-43 | OWNER, after the judging overspend: the two-judge faithfulness run was approved up to $15 (the owner's answer to a question that showed the $14.18 estimate; D-41 had pre-approved about $10) and spent about $28.79: $28.59 on the Claude Opus judge and $0.20 on claim extraction, because a resumed run started a fresh per-run cap; the GPT judge produced nothing. The owner chose to summarise what is already cached, at no cost, and not to spend more. The result is reported as a partial, Opus-only measure: 4,159 of 5,551 claims (75%) judged, 48.0% supported (Wilson 46.5%–49.5%), none of 342 fully judged explanations fully supported. It is not claimed as a two-judge result and `judge_mode` is `single`. Two defects in the measurement are recorded for any later run: the evidence sentences round numbers (0.02 for 0.0167) so exact figures read as unsupported, and policy statements ("P5.9 forbids...") have no policy text among the evidence. Calibration against the owner's labels (EXP-09) moves out of v0.1.0. `fraud judge` now treats its cap as a total across every judging invocation, summing the ledger's `faithfulness` lines (a renamed run folder cannot start a fresh cap), no longer suggests rerunning, and its dry run warns that EvalKit's planning default of 4.5 claims per explanation is about 2.7 times too low for these explanations (about 12 measured), which is why the estimate was half the real cost | Finish with a new cap; drop judging | Honest and cheap: the money is spent, and the cache holds Opus verdicts for most claims. A faithfulness number that punishes correct policy citations would mislead, so the limits are stated beside it |
+| D-44 | OWNER: release v0.1.0 now and deploy later. The Streamlit Community Cloud deploy of the replay demo (DEM-05) moves out of v0.1.0 to v0.2, with the hosted passkey demo (D-41); v0.1.0 ships the replay demo as a local app with a pinned requirements file and README. The dashboard workflow stays, and GitHub Pages is switched on by the owner when wanted | Sign in and deploy first; pause | The deploy needs the owner's sign-in and does not change any result. The release docs say plainly that the hosted demo is not part of v0.1.0 | 
+| D-45 | OWNER: no video. The 90-second video (PUB-02) is dropped from v0.1.0 and the project page carries the write-up, the dashboard and demo screenshots, and the linked documents instead. A shot list is not produced | Record it later; pause | The owner will not record one, and the page can show the same walk-through as screenshots with captions | 
 
 ---
 
@@ -613,7 +615,7 @@ Status vocabulary: `not-started | spec | building | green`. Build status comes f
 | **B3.5** | Reusable patterns page | E2.3, B3.1 | `docs/patterns.md`: policy-as-code, review queue, explanation checks, cost model, each with limits | — |
 | **D4.1** | Analyst review screen | E2.3, A2.2 | `fraud demo-cache`, Streamlit Community Cloud page, replay only, session audit log | US3, US8 |
 | **D4.3** | Open-source release | E2.3, D4.1, B3.5 | Community files, quickstart (keyless replay, then own keys on Bedrock or the Anthropic API), docs, fresh-clone CI smoke, v0.1.0 GitHub release | — |
-| **D4.2** | Project page, video and supporting artifacts | D4.1, D4.3, B3.2, B3.3, B3.4, B3.5 | Project write-up, 90-second video, one-page PRD, decision log, data card, build notes | — |
+| **D4.2** | Project page and supporting artifacts | D4.1, D4.3, B3.2, B3.3, B3.4, B3.5 | Project write-up, one-page PRD, decision log, data card, build notes | — |
 
 Waves: **W0** harness and access → **N1** core → **A2** baseline and agent → **E2** evaluation → **B3/D4** business artifacts, demo and publishing. Must-story scope (US1–US7) is complete at B3.2.
 
@@ -662,7 +664,7 @@ graph LR
   E23 --> D43[D4.3 Open-source release]
   D41 --> D43
   B35 --> D43
-  D41 --> D42[D4.2 Project page + video]
+  D41 --> D42[D4.2 Project page]
   D43 --> D42
   B32 --> D42
   B33 --> D42
@@ -929,14 +931,12 @@ Each row becomes one line in `docs/graph/catalog.tsv` with status `not-started`.
 | DEM-02 | Screen per §7: transaction, reasons with clause links, fields, SHAP side by side; no block button | FR12, US3 |
 | DEM-03 | Confirm, clear and override with comment write to a per-session audit chain, downloadable | US8, E8 |
 | DEM-04 | No cloud client or secret in the demo package (test) | D-15 |
-| DEM-05 | Deployed on Streamlit Community Cloud | Deliverables |
 
-**D4.2 Project page, video and supporting artifacts**
+**D4.2 Project page and supporting artifacts**
 
 | Cap | Capability | Trace |
 | --- | --- | --- |
 | PUB-01 | Project write-up, numbers from `summary.json` | Deliverables |
-| PUB-02 | 90-second video walking one alert from score to decision | Deliverables |
 | PUB-03 | One-page PRD, decision log, data card and build notes linked | Deliverables |
 | PUB-04 | Honesty gate passes on the page source | NFR5 |
 

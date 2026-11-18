@@ -239,6 +239,14 @@ def _demo_cache(args: argparse.Namespace) -> int:
         return 2
     print(f"wrote {args.out}: {n} held or escalated cases, {size} bytes (simulated data)")
     print(f"skipped {skipped} cases whose text the public-content guard flags")
+    from fraudreview import content_guard
+
+    if not content_guard.GUARD_FILE.is_file():
+        print(
+            "warning: no private guard file (.public-guard.local); only the generic patterns "
+            "were applied, so run this where the full guard is present before publishing",
+            file=sys.stderr,
+        )
     return 0
 
 

@@ -57,4 +57,4 @@ Generated from Tech Spec §11.2; edit here from now on and keep the Tech Spec in
 | --- | --- | --- | --- | --- | --- |
 | **D4.1** | Analyst review screen | E2.3, A2.2 | node_converge + verifier | `fraud demo-cache`, Streamlit Community Cloud page, replay only, session audit log | US3, US8 |
 | **D4.3** | Open-source release | E2.3, D4.1, B3.5 | node_converge + verifier | Community files, quickstart (keyless replay, then own keys on Bedrock or the Anthropic API), docs, fresh-clone CI smoke, v0.1.0 GitHub release | — |
-| **D4.2** | Project page, video and supporting artifacts | D4.1, D4.3, B3.2, B3.3, B3.4, B3.5 | node_converge + verifier | Project write-up, 90-second video, one-page PRD, decision log, data card, build notes | — |
+| **D4.2** | Project page and supporting artifacts | D4.1, D4.3, B3.2, B3.3, B3.4, B3.5 | node_converge + verifier | Project write-up, one-page PRD, decision log, data card, build notes | — |

@@ -8,7 +8,7 @@ can download.
 
 **v0.1.0 is replay-only (D-41).** Every case comes from the committed `demo/replay.jsonl`. No model
 is called, no cloud service is reached, and no key or secret is read. The hosted demo with passkey
-sign-in moves to v0.2. All data is simulated and every number on the screen says so.
+sign-in moves to v0.2. All data is simulated and every number on the screen says so. The decisions you record in the demo are not real: no real card, customer or case is involved, and nothing leaves your browser session except the audit file you choose to download.
 
 ## Run it locally
 
@@ -34,7 +34,9 @@ uv run fraud demo-cache --run results/<run> --alerts results/baseline/alerts_<sp
 Cases whose merchant name or other text matches the public-content guard
 (`fraudreview.content_guard`) are skipped and the command prints how many.
 
-## Deploy to Streamlit Community Cloud
+## Deploy to Streamlit Community Cloud (planned for v0.2, not part of v0.1.0)
+
+The hosted deploy moved out of v0.1.0 (D-44). These are the steps for when it is done.
 
 The repository owner has to do this; it needs their sign-in and cannot be scripted.
 
