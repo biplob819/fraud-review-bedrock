@@ -15,3 +15,5 @@ docs/guide/own-data.md
 docs/guide/cost.md
 docs/guide/privacy.md
 docs/versioning.md
+docs/project.md
+docs/prd-onepager.md
