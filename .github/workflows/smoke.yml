@@ -43,6 +43,9 @@ jobs:
       - name: Version
         working-directory: fresh
         run: uv run fraud --version
+      - name: The offline check runs with no keys
+        working-directory: fresh
+        run: uv run fraud doctor --offline
       - name: Render the example dashboard (no keys, no results folder)
         working-directory: fresh
         run: |

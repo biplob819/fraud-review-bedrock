@@ -118,7 +118,7 @@ Bedrock is supported through the in-Region Mantle endpoint. It was not run for t
 
 - A hosted demo is planned for v0.2. In this release the demo runs only on your machine.
 - There is no video.
-- The package is not on PyPI. Releases attach a wheel and a source archive on GitHub.
+- The package is not on PyPI. Releases attach a wheel and a source archive on GitHub. Run the project from a clone: the wheel and the source archive do not carry `config.yaml`, `policy.md`, `prices.yaml` or the demo, so they are not a standalone install.
 
 ## Data and credits
 

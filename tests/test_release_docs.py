@@ -296,3 +296,10 @@ def test_versioning_policy_names_the_release_steps():
     text = _text("docs/versioning.md")
     for phrase in ("MAJOR.MINOR.PATCH", "uv build", "Releases are not published to PyPI"):
         assert phrase in text
+
+
+def test_release_workflow_requires_the_tag_to_be_on_main_and_docs_say_the_wheel_is_not_standalone():
+    wf = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+    assert "merge-base --is-ancestor" in wf and "origin/main" in wf
+    assert "standalone" in (ROOT / "README.md").read_text(encoding="utf-8")
+    assert "standalone" in (ROOT / "docs" / "versioning.md").read_text(encoding="utf-8")

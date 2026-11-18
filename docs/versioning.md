@@ -28,7 +28,7 @@ A change to the published results (a new evaluation run) is not a version bump o
 3. Tag the commit `v<version>` and push the tag.
 4. The release workflow (`.github/workflows/release.yml`) builds the wheel and the source archive with `uv build`, runs the tests, and attaches both files to a GitHub release with the changelog section as the notes.
 
-The workflow checks that the tag matches the version in `pyproject.toml`, and stops if not. It needs only permission to write repository contents.
+The files it attaches are not a standalone install: they do not carry `config.yaml`, `policy.md`, `prices.yaml` or the demo, so run the project from a clone. The workflow checks that the tag matches the version in `pyproject.toml` and that the tagged commit is on `main`, and stops if not. It needs only permission to write repository contents.
 
 ## PyPI
 
