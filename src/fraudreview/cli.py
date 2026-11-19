@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from fraudreview import __version__
+from fraudreview.defaults import packaged
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_RAW = Path.home() / ".cache" / "fraud-review" / "raw"
@@ -327,7 +328,7 @@ def _plan_problem(folder: Path, config: Any) -> Any:
         ]
     except (OSError, ValueError) as exc:
         return f"not a finished run ({type(exc).__name__})"
-    current = run.freeze_record(config, load_policy())
+    current = run.freeze_record(config, load_policy(packaged("policy.md")))
     freeze = facts.get("freeze") if isinstance(facts, dict) else None
     if not isinstance(freeze, dict) or freeze.get("digest") != current["digest"]:
         return "that run used other settings; plan from a run made under the current ones"
@@ -355,7 +356,7 @@ def _triage_live(
     from fraudreview.llm import make_client
     from fraudreview.policy import load_policy
 
-    policy = load_policy()
+    policy = load_policy(packaged("policy.md"))
     current = run.freeze_record(config, policy)
     if args.split.startswith("eval"):
         problems = run.freeze_problems(ROOT / run.FREEZE, current)
@@ -484,7 +485,7 @@ def _evaluate(args: argparse.Namespace) -> int:
         return 2
     try:
         config = load_config(args.config)
-        policy = load_policy()
+        policy = load_policy(packaged("policy.md"))
         if args.example:
             inputs = summary.load_golden(ROOT / "tests" / "fixtures" / "golden")
         else:
@@ -643,7 +644,7 @@ def _freeze(args: argparse.Namespace) -> int:
     except ConfigError as exc:
         print(f"fraud freeze: {exc}", file=sys.stderr)
         return 2
-    record = run.freeze_record(config, load_policy())
+    record = run.freeze_record(config, load_policy(packaged("policy.md")))
     path = ROOT / run.FREEZE
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -704,7 +705,7 @@ def _record(args: argparse.Namespace, client_factory: Callable[[], Any] | None =
     if config.provider != "anthropic":
         print("--record supports provider anthropic only", file=sys.stderr)
         return 1
-    system = (ROOT / "policy.md").read_text(encoding="utf-8")
+    system = packaged("policy.md").read_text(encoding="utf-8")
     try:
         report = record_preflight(
             (client_factory or _anthropic_client)(),
@@ -815,9 +816,19 @@ def main(argv: list[str] | None = None) -> int:
         return 3
 
 
+def _use_packaged_defaults(args: argparse.Namespace) -> None:
+    """An untouched default path that is not in the current folder falls back to the copy that
+    ships with the package, so a pip install runs outside a clone."""
+    for attr, name in (("config", "config.yaml"), ("prices", "prices.yaml")):
+        given = getattr(args, attr, None)
+        if given is not None and given == Path(name) and not given.exists():
+            setattr(args, attr, packaged(name))
+
+
 def _dispatch(argv: list[str] | None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    _use_packaged_defaults(args)
     if args.command == "load":
         return _load(args)
     if args.command == "baseline":

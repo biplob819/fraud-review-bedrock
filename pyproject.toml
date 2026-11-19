@@ -1,6 +1,6 @@
 [project]
 name = "fraud-review-bedrock"
-version = "0.1.0"
+version = "0.2.0"
 description = "A fraud-review agent on Amazon Bedrock that triages card alerts, explains each decision against a written policy and sends uncertain cases to a person."
 readme = "README.md"
 license = "MIT"
@@ -58,8 +58,13 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/fraudreview"]
 
+[tool.hatch.build.targets.wheel.force-include]
+"policy.md" = "fraudreview/_defaults/policy.md"
+"config.yaml" = "fraudreview/_defaults/config.yaml"
+"prices.yaml" = "fraudreview/_defaults/prices.yaml"
+
 [tool.hatch.build.targets.sdist]
-include = ["src/fraudreview", "README.md", "LICENSE", "NOTICE", "changelog.md"]
+include = ["src/fraudreview", "policy.md", "config.yaml", "prices.yaml", "README.md", "LICENSE", "NOTICE", "changelog.md"]
 
 [tool.ruff]
 line-length = 100

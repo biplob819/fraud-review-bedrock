@@ -28,6 +28,7 @@ from evalkit.schemas import Answer, Case, Completion
 from evalkit.scorers import ScoreResult, scorer
 
 from fraudreview import evalkit_bridge, explain, valuecheck
+from fraudreview.defaults import packaged
 from fraudreview.policy import Policy, load_policy
 from fraudreview.schemas import AlertCase, TriageDecision
 from fraudreview.truth import AlertTruth
@@ -68,7 +69,7 @@ def wrap(decision: TriageDecision, alert: AlertCase) -> tuple[Case, Completion]:
 
 @functools.cache
 def _policy() -> Policy:
-    return load_policy()
+    return load_policy(packaged("policy.md"))
 
 
 def _need(ctx: dict[str, Any], key: str) -> Any:

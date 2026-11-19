@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from fraudreview import explain, monitor
+from fraudreview.defaults import packaged
 from fraudreview.schemas import Interval, Rate
 from fraudreview.summary_model import EvaluatedSummary as RunSummary
 
@@ -892,7 +893,7 @@ def render_example(root: Path) -> str:
     built = summary.build(
         summary.load_golden(golden),
         load_config(root / "config.yaml"),
-        load_policy(),
+        load_policy(packaged("policy.md")),
         summary.read_baseline(root / summary.BASELINE_SUMMARY),
     )
     return render(built.summary, monitor.read_jsonl(root / monitor.RUNS), example=True)

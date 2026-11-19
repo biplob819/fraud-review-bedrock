@@ -2,7 +2,8 @@
 
 Format: `[TYPE] [NODE] — summary`. Types: FEAT, FIX, DOCS, HARNESS, RELEASE.
 
-## v0.2
+## v0.2.0
+- [FEAT] [D4.3] — the wheel carries `policy.md`, `config.yaml` and `prices.yaml`, and the CLI uses them when the current folder has none, so a pip install runs outside a clone
 - [RELEASE] [D4.3] — a manual `publish-pypi.yml` workflow (trusted publishing, `pypi` environment, never on a push or tag) is ready for the owner to use; nothing is published yet
 - [DOCS] [E2.5] — EvalKit pin moves from v0.4.0 to v0.4.1 (PyPI); only the doctor's exact-version check differs
 - [FIX] [E2.2, E2.4, D4.3] — a lock on the spend ledger lets only one `fraud judge` run at a time spend against the cap, so overlapping runs cannot pass it together (a second run is refused with a message); `fraud monitor` run twice on one run adds one history line, not two; `fraud experiment` refuses runs that are not dev runs and a labels file named for another split; every GitHub workflow action is pinned to a full commit SHA with its version in a trailing comment, checked by a test
