@@ -45,7 +45,7 @@ def test_numbers_match_the_summary_and_the_first_run() -> None:
 
 def test_it_is_honest_about_the_video_the_demo_and_the_faithfulness_result() -> None:
     assert "video is not part of this release" in TEXT
-    assert "hosted demo is planned for v0.2" in TEXT
+    assert "replay demo is hosted at" in TEXT
     assert "single-judge partial" in TEXT and "not calibrated" in TEXT
 
 

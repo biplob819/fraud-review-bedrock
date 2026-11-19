@@ -118,9 +118,9 @@ Bedrock is supported through the in-Region Mantle endpoint. It was not run for t
 
 ## What is planned, and what is not
 
-- A hosted demo is planned for v0.2. In this release the demo runs only on your machine.
+- The replay demo is hosted at https://fraud-review-bedrock.streamlit.app/ (simulated data; it replays recorded cases and calls no model). A hosted demo with passkey sign-in is not built. You can also run the demo on your machine.
 - There is no video.
-- The package is not on PyPI. Releases attach a wheel and a source archive on GitHub. Run the project from a clone: the wheel and the source archive do not carry `config.yaml`, `policy.md`, `prices.yaml` or the demo, so they are not a standalone install.
+- The package is on PyPI as `fraud-review-bedrock`: `pip install fraud-review-bedrock`. The wheel carries `config.yaml`, `policy.md` and `prices.yaml`, so the `fraud` command runs outside a clone. The wheel does not carry the demo or the data; those come from a clone, so it is not a standalone install of the demo.
 
 ## Data and credits
 

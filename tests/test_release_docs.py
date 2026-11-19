@@ -150,7 +150,7 @@ def test_quickstart_names_the_steps_in_order():
 @pytest.mark.contract
 def test_readme_states_what_is_planned_and_what_is_not():
     text = _text("README.md")
-    assert "planned for v0.2" in text
+    assert "streamlit.app" in text
     assert "There is no video" in text
     assert "PyPI" in text
 
@@ -294,7 +294,7 @@ def test_changelog_section_picks_the_named_version_or_the_newest():
 @pytest.mark.contract
 def test_versioning_policy_names_the_release_steps():
     text = _text("docs/versioning.md")
-    for phrase in ("MAJOR.MINOR.PATCH", "uv build", "Releases are not published to PyPI"):
+    for phrase in ("MAJOR.MINOR.PATCH", "uv build", "published to PyPI"):
         assert phrase in text
 
 

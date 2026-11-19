@@ -50,4 +50,4 @@ The ROI model, on simulated data and illustrative inputs, shows no payback at th
 - [Data card](../DATA_CARD.md)
 - [Quickstart and guides](guide/README.md), and the [README](../README.md)
 
-The hosted demo is planned for v0.2. You can run the replay demo on your own machine today.
+The replay demo is hosted at https://fraud-review-bedrock.streamlit.app/, and you can also run it on your own machine.

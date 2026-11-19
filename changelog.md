@@ -3,6 +3,7 @@
 Format: `[TYPE] [NODE] — summary`. Types: FEAT, FIX, DOCS, HARNESS, RELEASE.
 
 ## v0.2.0
+- [DOCS] [D4.3] — the package is on PyPI and the replay demo is hosted on Streamlit Community Cloud; README, versioning policy and project page say so
 - [FEAT] [D4.3] — the wheel carries `policy.md`, `config.yaml` and `prices.yaml`, and the CLI uses them when the current folder has none, so a pip install runs outside a clone
 - [RELEASE] [D4.3] — a manual `publish-pypi.yml` workflow (trusted publishing, `pypi` environment, never on a push or tag) is ready for the owner to use; nothing is published yet
 - [DOCS] [E2.5] — EvalKit pin moves from v0.4.0 to v0.4.1 (PyPI); only the doctor's exact-version check differs

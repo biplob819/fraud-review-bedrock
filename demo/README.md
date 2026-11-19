@@ -47,7 +47,7 @@ The repository owner has to do this; it needs their sign-in and cannot be script
 5. Deploy. Streamlit installs `demo/requirements.txt` (pinned from `uv.lock`) and starts the page.
    The app finds the `fraudreview` package through its `src/` folder, so nothing is published to
    PyPI.
-6. Put the app's URL in the README.
+6. Put the app's URL in the README. (Done: https://fraud-review-bedrock.streamlit.app/)
 
 To refresh the pins after `uv.lock` changes, re-run the export from `uv export --locked
 --extra demo --no-dev --no-emit-project --no-hashes` and keep only the packages the demo imports
