@@ -316,3 +316,15 @@ def test_every_workflow_action_is_pinned_to_a_full_commit_sha_with_its_version()
                 found += 1
                 assert pinned.match(m.group(1).strip()), f"{path.name}:{n} is not pinned: {line}"
     assert found >= 8
+
+
+@pytest.mark.contract
+def test_pypi_publish_is_a_manual_gated_trusted_publishing_workflow():
+    wf = _workflow("publish-pypi.yml")
+    assert set(_on(wf)) == {"workflow_dispatch"}  # never on a push or tag
+    assert wf["permissions"] == {"contents": "read"}
+    job = wf["jobs"]["publish"]
+    assert job["environment"] == "pypi"
+    assert job["permissions"] == {"contents": "read", "id-token": "write"}
+    raw = (WORKFLOWS / "publish-pypi.yml").read_text(encoding="utf-8").lower()
+    assert "secrets." not in raw and "password" not in raw  # no stored token

@@ -1,0 +1,40 @@
+name: publish-pypi
+
+# Publish an already released version to PyPI. It runs only when the owner starts it by hand, and
+# the `pypi` environment can hold it until the owner approves. PyPI trusted publishing means no
+# token is stored in this repository.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to publish, for example v0.2.0"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      contents: read
+      id-token: write  # the trusted-publishing login, used only by the publish step
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ inputs.tag }}
+          fetch-depth: 0
+      - name: The tag must be on main and match pyproject.toml
+        run: |
+          git fetch origin main
+          git merge-base --is-ancestor HEAD origin/main || { echo "tag is not on main" >&2; exit 1; }
+          version=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          [ "${{ inputs.tag }}" = "v${version}" ] || { echo "tag does not match version ${version}" >&2; exit 1; }
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          python-version: "3.12"
+      - run: uv sync --locked --all-extras
+      - run: uv run pytest -q
+      - run: uv build
+      - uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
